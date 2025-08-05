@@ -101,7 +101,8 @@
       <form method="_POST" action="">
 
       <div class="input-group">
-        <label for="role">Select Role</label>
+        <i class="fas fa-users"></i>
+        <!-- <label for="role">Select Role</label> -->
         <select name="role" i="role" required>
           <option value="">--Select Role--</option>
           <option value="Parent">Parent</option>
