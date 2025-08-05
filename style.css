@@ -26,7 +26,8 @@ form{
     padding:1.3rem;
     margin-bottom:0.4rem;
 }
-input{
+input,
+select {
     color:inherit;
     width:100%;
     background-color:transparent;
@@ -38,7 +39,7 @@ input{
 .input-group{
     padding:1% 0;
     position:relative;
-
+    /* margin-bottom:2 rem;  */
 }
 .input-group i{
     position:absolute;
@@ -142,3 +143,20 @@ button:hover{
     text-decoration:underline;
     color:#8b0000;
 }
+
+/* select{
+    color:inherit;
+    width:100%;
+    background-color:transparent;
+    border:none;
+    border-bottom:1px solid #757575;
+    padding-left:1.5rem;
+    font-size:15px;
+    font-family:inherit;
+    appearance:none;
+}
+select:focus{
+    outline:none;
+    border-bottom:2px solid hsl(327,90%,28%);
+    background-color:transparent;
+} */
