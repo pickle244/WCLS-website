@@ -72,12 +72,18 @@
         <div class="input-group">
             <i class="fas fa-lock"></i>
             <input type="password" name="password" id="password" placeholder="Password" required>
+            <span class="toggle-password" toggle="#password">
+              <i class="fas fa-eye"></i>
+        </span>
             <label for="password">Password</label>
         </div>
         <div class="input-group">
             <i class="fas fa-lock"></i>
             <input type="password" name="passwordConfirm" id="passwordConfirm" placeholder="Confirm Password" required>
-            <label for="passwordConfirm">Password</label>
+            <span class="toggle-password" toggle="#password">
+              <i class="fas fa-eye"></i>
+        </span>
+            <label for="passwordConfirm">Confirm Password</label>
         </div>
         <input type="submit" class="btn" value="Sign Up" name="SignUp">
       </form>
@@ -130,6 +136,9 @@
         <div class="input-group">
             <i class="fas fa-lock"></i>
             <input type="password" name="password" id="password" placeholder="Password" required>
+            <span class="toggle-password" toggle="#password">
+              <i class="fas fa-eye"></i>
+        </span>
             <label for="password">Password</label>
         </div>
          <p class="recover">

@@ -144,6 +144,19 @@ button:hover{
     color:#8b0000;
 }
 
+.toggle-password {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-60%);
+    cursor: pointer;
+    color: #555;
+    font-size: 1rem;
+    z-index: 2;
+}
+
+
+
 /* select{
     color:inherit;
     width:100%;
