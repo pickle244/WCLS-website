@@ -26,8 +26,7 @@ form{
     padding:1.3rem;
     margin-bottom:0.4rem;
 }
-input,
-select {
+input{
     color:inherit;
     width:100%;
     background-color:transparent;
@@ -36,10 +35,9 @@ select {
     padding-left:1.5rem;
     font-size:15px;
 }
-.input-group{
+.input-group {
     padding:1% 0;
     position:relative;
-    /* margin-bottom:2 rem;  */
 }
 .input-group i{
     position:absolute;
@@ -102,23 +100,24 @@ input:focus~label,input:not(:placeholder-shown)~label{
 }
 .icons{
     text-align:center;
-    /* display: flex;
-    justify-content: center;
-    align-items: center; */
 }
 .icons i{
     color:#8b0000;
-    padding:0.8rem 1.5rem;
     border-radius:10px;
     font-size:1.5rem;
     cursor:pointer;
     border:2px solid #dfe9f5;
     margin:0 15px;
-    transition:1s;
+    transition:0.2s;
 
-    /* display: flex; */
-    justify-content: center;
-    align-items: center;
+    display: inline-flex;        
+    width: 56px;                 /* 固定方块大小 */
+    height: 56px;               
+    justify-content: center;     /* 居中内容 */
+    align-items: center;         /* 居中内容 */
+    padding: 0;                  /* 去掉不对称 padding */
+
+
 }
 .icons i:hover{
     background:#07001f;
@@ -147,17 +146,31 @@ button:hover{
 .toggle-password {
     position: absolute;
     right: 10px;
-    top: 50%;
-    transform: translateY(-60%);
+    top:0;                              
+    transform: translateY(0);
     cursor: pointer;
     color: #555;
     font-size: 1rem;
     z-index: 2;
+    
 }
 
+/* 让 select 的占位选项呈现灰色，选中有效项后恢复 */
+select:required:invalid {           /* 未选择有效值时 */
+  color: #757575;
+}
+select option[value=""] {           /* 占位项 */
+  color: #757575;
+}
+select:valid {                      /* 选择有效值后 */
+  color: inherit;
+}
 
+select#role {
+     margin-bottom: 1rem; 
+}
 
-/* select{
+select{
     color:inherit;
     width:100%;
     background-color:transparent;
@@ -168,8 +181,10 @@ button:hover{
     font-family:inherit;
     appearance:none;
 }
+
+
 select:focus{
-    outline:none;
+    outline:transparent;
     border-bottom:2px solid hsl(327,90%,28%);
     background-color:transparent;
-} */
+} 

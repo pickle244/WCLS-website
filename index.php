@@ -8,10 +8,11 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container" id="signup">
+    <div class="container" id="signup" style="display:none;">
       <h1 class="form-title">Register</h1>
       <?php
     if(isset($_POST["SignUp"])) {
+      $role = $_POST["role"];
       $first_name = $_POST["fName"];
       $last_name = $_POST["lName"];
       $email = $_POST["email"];
@@ -39,6 +40,29 @@
       if (count($errors) > 0) {
         foreach ($errors as $error) {
           echo "<div class='alert registration-error'>$error</div>";
+        }
+      } else {
+        require_once "connection.php";
+        $sql = "INSERT INTO accounts_info (first_name, 
+                                           last_name, 
+                                           email, 
+                                           password, 
+                                           account_type) VALUES (?, ?, ?, ?, ?)";
+        $stmt = mysqli_stmt_init($conn);
+        $prepStmt = mysqli_stmt_prepare($stmt, $sql);
+        if ($prepStmt) {
+          mysqli_stmt_bind_param($stmt, 
+                                 "sssss", 
+                                 $first_name, 
+                                 $last_name,
+                                 $email,
+                                 $password_hash,
+                                 $role);
+          mysqli_stmt_execute($stmt);
+          echo "<div class='alert registration-success'>
+                Registration successful</div>";
+        } else {
+          die("Registration unsuccessful");
         }
       }
     }
@@ -71,18 +95,20 @@
         </div>
         <div class="input-group">
             <i class="fas fa-lock"></i>
-            <input type="password" name="password" id="password" placeholder="Password" required>
-            <span class="toggle-password" toggle="#password">
-              <i class="fas fa-eye"></i>
-        </span>
+            
+              <input type="password" name="password" id="password" placeholder="Password" required>
+              <span class="toggle-password" toggle="#passwordConfirm">
+                <i class="fas fa-eye"></i>
+          </span>
             <label for="password">Password</label>
         </div>
         <div class="input-group">
             <i class="fas fa-lock"></i>
-            <input type="password" name="passwordConfirm" id="passwordConfirm" placeholder="Confirm Password" required>
-            <span class="toggle-password" toggle="#password">
-              <i class="fas fa-eye"></i>
-        </span>
+            
+              <input type="password" name="passwordConfirm" id="passwordConfirm" placeholder="Confirm Password" required>
+              <span class="toggle-password" toggle="#password">
+                <i class="fas fa-eye"></i>
+          </span>
             <label for="passwordConfirm">Confirm Password</label>
         </div>
         <input type="submit" class="btn" value="Sign Up" name="SignUp">
@@ -108,25 +134,14 @@
 
       <div class="input-group">
         <i class="fas fa-users"></i>
-        <!-- <label for="role">Select Role</label> -->
-        <select name="role" i="role" required>
-          <option value="">--Select Role--</option>
+        
+        <select name="role" id="role" required>
+          <option value="" disabled selected hidden>--Select Role--</option>
           <option value="Parent">Parent</option>
           <option value="Teacher">Teacher</option>
           <option value="Admin">Admin</option>
-        </select>
+      </select>
       </div>
-
-        <!-- <div class="input-group">
-           <i class="fas fa-user"></i>
-           <input type="text" name="fName" id="fName" placeholder="First Name" required>
-           <label for="fname">First Name</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-user"></i>
-            <input type="text" name="lName" id="lName" placeholder="Last Name" required>
-            <label for="lName">Last Name</label>
-        </div> -->
 
         <div class="input-group">
             <i class="fas fa-envelope"></i>
@@ -135,10 +150,11 @@
         </div>
         <div class="input-group">
             <i class="fas fa-lock"></i>
-            <input type="password" name="password" id="password" placeholder="Password" required>
-            <span class="toggle-password" toggle="#password">
-              <i class="fas fa-eye"></i>
-        </span>
+            
+              <input type="password" name="password" id="password" placeholder="Password" required>
+              <span class="toggle-password" toggle="#password">
+                <i class="fas fa-eye"></i>
+          </span>
             <label for="password">Password</label>
         </div>
          <p class="recover">
@@ -157,8 +173,10 @@
       <div class="links">
         <p>Don't have account yet?</p>
         <button id="signUpButton">Sign Up</button>
-</div>
-</div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+
   
 </body>
 </html>
