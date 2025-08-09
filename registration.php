@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register & Login</title>
+  <title>Register</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -45,26 +45,33 @@
         }
       } else {
         require_once "connection.php";
-        $sql = "INSERT INTO accounts_info (first_name, 
-                                          last_name, 
-                                          email, 
-                                          password, 
-                                          account_type) VALUES (?, ?, ?, ?, ?)";
-        $stmt = mysqli_stmt_init($conn);
-        $prepStmt = mysqli_stmt_prepare($stmt, $sql);
-        if ($prepStmt) {
-          mysqli_stmt_bind_param($stmt, 
-                                "sssss", 
-                                $first_name, 
-                                $last_name,
-                                $email,
-                                $password_hash,
-                                $role);
-          mysqli_stmt_execute($stmt);
-          echo "<div class='alert success'>
-                Registration successful</div>";
+        $sql = "SELECT * FROM accounts_info WHERE email = '$email'";
+        $result = mysqli_query($conn, $sql);
+        $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
+        if ($user) {
+          echo "<div class='alert danger'>Email already exists</div>";
         } else {
-          die("Registration unsuccessful");
+          $sql = "INSERT INTO accounts_info (first_name, 
+                                             last_name, 
+                                             email, 
+                                             password, 
+                                             account_type) VALUES (?, ?, ?, ?, ?)";
+          $stmt = mysqli_stmt_init($conn);
+          $prepStmt = mysqli_stmt_prepare($stmt, $sql);
+          if ($prepStmt) {
+            mysqli_stmt_bind_param($stmt, 
+                                  "sssss", 
+                                  $first_name, 
+                                  $last_name,
+                                  $email,
+                                  $password_hash,
+                                  $role);
+            mysqli_stmt_execute($stmt);
+            echo "<div class='alert success'>
+                  Registration successful</div>";
+          } else {
+            die("Registration unsuccessful");
+          }
         }
       }
     }
@@ -125,8 +132,9 @@
     </div>
     <div class="links">
       <p>Already Have Account ?</p>
-      <button id="signInButton">Sign In</button>
+      <button id="signInButton"><a href="login.php">Sign In</a></button>
     </div>
   </div>
+  <script src="script.js"></script>
 </body>
 </html>

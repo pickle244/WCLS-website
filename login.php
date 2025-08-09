@@ -1,5 +1,5 @@
 <?php
-session_start()
+session_start();
 if (isset($_SESSION["user"])) {
   header("Location: index.php");
 }
@@ -9,7 +9,7 @@ if (isset($_SESSION["user"])) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register & Login</title>
+  <title>Login</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -42,7 +42,7 @@ if (isset($_SESSION["user"])) {
       ?>
       <form method="post" action="login.php">
 
-      <div class="input-group">
+      <!-- <div class="input-group">
         <i class="fas fa-users"></i>
         
         <select name="role" id="role" required>
@@ -51,7 +51,7 @@ if (isset($_SESSION["user"])) {
           <option value="Teacher">Teacher</option>
           <option value="Admin">Admin</option>
       </select>
-      </div>
+      </div> -->
 
         <div class="input-group">
             <i class="fas fa-envelope"></i>
@@ -82,8 +82,9 @@ if (isset($_SESSION["user"])) {
       </div>
       <div class="links">
         <p>Don't have account yet?</p>
-        <button id="signUpButton">Sign Up</button>
+        <button id="signUpButton"><a href="registration.php">Sign Up</a></button>
     </div>
   </div>
+  <script src="script.js"></script>
 </body>
 </html>
