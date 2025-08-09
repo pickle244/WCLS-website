@@ -19,7 +19,9 @@
       $password = $_POST["password"];
       $password_confirm = $_POST["passwordConfirm"];
       $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
       $errors = array();
+
       if (empty($first_name) OR 
           empty($last_name) OR 
           empty($email) OR 
@@ -71,7 +73,7 @@
       <div class="input-group">
         <i class="fas fa-users"></i>
         <!-- <label for="role">Select Role</label> -->
-        <select name="role" i="role" required>
+        <select name="role" id="role" required>
           <option value="">--Select Role--</option>
           <option value="Parent">Parent</option>
           <option value="Teacher">Teacher</option>
@@ -130,7 +132,7 @@
 
 <div class="container" id="signIn">
       <h1 class="form-title">Sign In</h1>
-      <form method="_POST" action="">
+      <form method="post" action="index.php">
 
       <div class="input-group">
         <i class="fas fa-users"></i>
