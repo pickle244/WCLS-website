@@ -51,7 +51,7 @@
       }
 
       /*
-      if any errors exist, prevent sign in
+      if any errors exist, prevent registration
       otherwise, add info to database 
       */
       if (count($errors) > 0) {
@@ -87,6 +87,13 @@
             mysqli_stmt_execute($stmt);
             echo "<div class='alert success'>
                   Registration successful</div>";
+            sleep(1);
+
+            // start session to indicate user is registered and logged in
+            session_start();
+            $_SESSION["user"] = "yes";
+            header("Location: index.php");
+            die();
           } else {
             die("Registration unsuccessful");
           }
