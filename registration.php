@@ -12,16 +12,20 @@
     <h1 class="form-title">Register</h1>
     <?php
     if(isset($_POST["SignUp"])) {
+      // store user inputs
       $role = $_POST["role"];
       $first_name = $_POST["fName"];
       $last_name = $_POST["lName"];
       $email = $_POST["email"];
       $password = $_POST["password"];
       $password_confirm = $_POST["passwordConfirm"];
+
+      // hash password for security
       $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
       $errors = array();
 
+      // if any field is missing, push respective errors
       if (empty($first_name) OR 
           empty($last_name) OR 
           empty($email) OR 
@@ -30,21 +34,34 @@
       {
         array_push($errors, "All fields are required");
       }
+
+      // error if email is not proper format
       if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         array_push($errors, "Invalid email");
       }
+
+      // error if password is less than 8 chars
       if (strlen($password) < 8) {
         array_push($errors, "Password must be at least 8 characters long");
       }
+
+      // error if passwords to not match
       if ($password !== $password_confirm) {
         array_push($errors, "Passwords do not match");
       }
+
+      /*
+      if any errors exist, prevent sign in
+      otherwise, add info to database 
+      */
       if (count($errors) > 0) {
         foreach ($errors as $error) {
           echo "<div class='alert danger'>$error</div>";
         }
       } else {
-        require_once "connection.php";
+        require_once "connection.php"; // establish connection to database
+
+        // verify that the email is not already being used
         $sql = "SELECT * FROM accounts_info WHERE email = '$email'";
         $result = mysqli_query($conn, $sql);
         $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
@@ -57,15 +74,16 @@
                                              password, 
                                              account_type) VALUES (?, ?, ?, ?, ?)";
           $stmt = mysqli_stmt_init($conn);
-          $prepStmt = mysqli_stmt_prepare($stmt, $sql);
+          $prepStmt = mysqli_stmt_prepare($stmt, $sql); // create mysql statement
           if ($prepStmt) {
+            // insert respective inputs into database columns
             mysqli_stmt_bind_param($stmt, 
-                                  "sssss", 
-                                  $first_name, 
-                                  $last_name,
-                                  $email,
-                                  $password_hash,
-                                  $role);
+                                   "sssss", 
+                                   $first_name, 
+                                   $last_name,
+                                   $email,
+                                   $password_hash,
+                                   $role);
             mysqli_stmt_execute($stmt);
             echo "<div class='alert success'>
                   Registration successful</div>";

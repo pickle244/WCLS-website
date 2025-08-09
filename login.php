@@ -1,5 +1,6 @@
 <?php
 session_start();
+// if user is already logged in, redirect them to the dashboard
 if (isset($_SESSION["user"])) {
   header("Location: index.php");
 }
@@ -21,12 +22,17 @@ if (isset($_SESSION["user"])) {
         $role = $_POST["role"];
         $email = $_POST["email"];
         $password = $_POST["password"];
-        require_once "connection.php";
+
+        require_once "connection.php"; // establish connection to database
+
+        // verify that email exists
         $sql = "SELECT * FROM accounts_info WHERE email = '$email'";
         $result = mysqli_query($conn, $sql);
         $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
         if ($user) {
+          // verify that password matches
           if (password_verify($password, $user["password"])) {
+            // start session to indicate user is logged in
             session_start();
             $_SESSION["user"] = "yes";
             header("Location: index.php");
