@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register & Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container" id="signup">
+    <h1 class="form-title">Register</h1>
+    <?php
+    if(isset($_POST["SignUp"])) {
+      $role = $_POST["role"];
+      $first_name = $_POST["fName"];
+      $last_name = $_POST["lName"];
+      $email = $_POST["email"];
+      $password = $_POST["password"];
+      $password_confirm = $_POST["passwordConfirm"];
+      $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+      $errors = array();
+
+      if (empty($first_name) OR 
+          empty($last_name) OR 
+          empty($email) OR 
+          empty($password) OR
+          empty($password_confirm))
+      {
+        array_push($errors, "All fields are required");
+      }
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        array_push($errors, "Invalid email");
+      }
+      if (strlen($password) < 8) {
+        array_push($errors, "Password must be at least 8 characters long");
+      }
+      if ($password !== $password_confirm) {
+        array_push($errors, "Passwords do not match");
+      }
+      if (count($errors) > 0) {
+        foreach ($errors as $error) {
+          echo "<div class='alert danger'>$error</div>";
+        }
+      } else {
+        require_once "connection.php";
+        $sql = "INSERT INTO accounts_info (first_name, 
+                                          last_name, 
+                                          email, 
+                                          password, 
+                                          account_type) VALUES (?, ?, ?, ?, ?)";
+        $stmt = mysqli_stmt_init($conn);
+        $prepStmt = mysqli_stmt_prepare($stmt, $sql);
+        if ($prepStmt) {
+          mysqli_stmt_bind_param($stmt, 
+                                "sssss", 
+                                $first_name, 
+                                $last_name,
+                                $email,
+                                $password_hash,
+                                $role);
+          mysqli_stmt_execute($stmt);
+          echo "<div class='alert success'>
+                Registration successful</div>";
+        } else {
+          die("Registration unsuccessful");
+        }
+      }
+    }
+    ?>
+    <form method="post" action="registration.php">
+    <div class="input-group">
+      <i class="fas fa-users"></i>
+      <!-- <label for="role">Select Role</label> -->
+      <select name="role" id="role" required>
+        <option value="">--Select Role--</option>
+        <option value="Parent">Parent</option>
+        <option value="Teacher">Teacher</option>
+        <option value="Admin">Admin</option>
+      </select>
+    </div>
+      <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input type="text" name="fName" id="fName" placeholder="First Name" required>
+          <label for="fname">First Name</label>
+      </div>
+      <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input type="text" name="lName" id="lName" placeholder="Last Name" required>
+          <label for="lName">Last Name</label>
+      </div>
+      <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" name="email" id="email" placeholder="Email" required>
+          <label for="email">Email</label>
+      </div>
+      <div class="input-group">
+          <i class="fas fa-lock"></i>
+          
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            <span class="toggle-password" toggle="#passwordConfirm">
+              <i class="fas fa-eye"></i>
+        </span>
+          <label for="password">Password</label>
+      </div>
+      <div class="input-group">
+          <i class="fas fa-lock"></i>
+          
+            <input type="password" name="passwordConfirm" id="passwordConfirm" placeholder="Confirm Password" required>
+            <span class="toggle-password" toggle="#password">
+              <i class="fas fa-eye"></i>
+        </span>
+          <label for="passwordConfirm">Confirm Password</label>
+      </div>
+      <input type="submit" class="btn" value="Sign Up" name="SignUp">
+    </form>
+    <p class="or">
+      ------------or-----------
+
+    </p>
+    <div class="icons">
+      <i class="fab fa-google"></i>
+      <i class="fab fa-facebook"></i>
+    </div>
+    <div class="links">
+      <p>Already Have Account ?</p>
+      <button id="signInButton">Sign In</button>
+    </div>
+  </div>
+</body>
+</html>

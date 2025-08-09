@@ -1,3 +1,9 @@
+<?php
+session_start()
+if (!isset($_SESSION["user"])) {
+  header("Location: login.php");
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,64 +17,64 @@
     <div class="container" id="signup" style="display:none;">
       <h1 class="form-title">Register</h1>
       <?php
-    if(isset($_POST["SignUp"])) {
-      $role = $_POST["role"];
-      $first_name = $_POST["fName"];
-      $last_name = $_POST["lName"];
-      $email = $_POST["email"];
-      $password = $_POST["password"];
-      $password_confirm = $_POST["passwordConfirm"];
-      $password_hash = password_hash($password, PASSWORD_DEFAULT);
+      if(isset($_POST["SignUp"])) {
+        $role = $_POST["role"];
+        $first_name = $_POST["fName"];
+        $last_name = $_POST["lName"];
+        $email = $_POST["email"];
+        $password = $_POST["password"];
+        $password_confirm = $_POST["passwordConfirm"];
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
-      $errors = array();
+        $errors = array();
 
-      if (empty($first_name) OR 
-          empty($last_name) OR 
-          empty($email) OR 
-          empty($password) OR
-          empty($password_confirm))
-      {
-        array_push($errors, "All fields are required");
-      }
-      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        array_push($errors, "Invalid email");
-      }
-      if (strlen($password) < 8) {
-        array_push($errors, "Password must be at least 8 characters long");
-      }
-      if ($password !== $password_confirm) {
-        array_push($errors, "Passwords do not match");
-      }
-      if (count($errors) > 0) {
-        foreach ($errors as $error) {
-          echo "<div class='alert registration-error'>$error</div>";
+        if (empty($first_name) OR 
+            empty($last_name) OR 
+            empty($email) OR 
+            empty($password) OR
+            empty($password_confirm))
+        {
+          array_push($errors, "All fields are required");
         }
-      } else {
-        require_once "connection.php";
-        $sql = "INSERT INTO accounts_info (first_name, 
-                                           last_name, 
-                                           email, 
-                                           password, 
-                                           account_type) VALUES (?, ?, ?, ?, ?)";
-        $stmt = mysqli_stmt_init($conn);
-        $prepStmt = mysqli_stmt_prepare($stmt, $sql);
-        if ($prepStmt) {
-          mysqli_stmt_bind_param($stmt, 
-                                 "sssss", 
-                                 $first_name, 
-                                 $last_name,
-                                 $email,
-                                 $password_hash,
-                                 $role);
-          mysqli_stmt_execute($stmt);
-          echo "<div class='alert registration-success'>
-                Registration successful</div>";
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+          array_push($errors, "Invalid email");
+        }
+        if (strlen($password) < 8) {
+          array_push($errors, "Password must be at least 8 characters long");
+        }
+        if ($password !== $password_confirm) {
+          array_push($errors, "Passwords do not match");
+        }
+        if (count($errors) > 0) {
+          foreach ($errors as $error) {
+            echo "<div class='alert registration-error'>$error</div>";
+          }
         } else {
-          die("Registration unsuccessful");
+          require_once "connection.php";
+          $sql = "INSERT INTO accounts_info (first_name, 
+                                            last_name, 
+                                            email, 
+                                            password, 
+                                            account_type) VALUES (?, ?, ?, ?, ?)";
+          $stmt = mysqli_stmt_init($conn);
+          $prepStmt = mysqli_stmt_prepare($stmt, $sql);
+          if ($prepStmt) {
+            mysqli_stmt_bind_param($stmt, 
+                                  "sssss", 
+                                  $first_name, 
+                                  $last_name,
+                                  $email,
+                                  $password_hash,
+                                  $role);
+            mysqli_stmt_execute($stmt);
+            echo "<div class='alert registration-success'>
+                  Registration successful</div>";
+          } else {
+            die("Registration unsuccessful");
+          }
         }
       }
-    }
-    ?>
+      ?>
       <form method="post" action="index.php">
       <div class="input-group">
         <i class="fas fa-users"></i>
@@ -129,9 +135,29 @@
 </div>
 </div>
 
-
 <div class="container" id="signIn">
       <h1 class="form-title">Sign In</h1>
+      <?php
+      if (isset($_POST["SignIn"])) {
+        $role = $_POST["role"];
+        $email = $_POST["email"];
+        $password = $_POST["password"];
+        require_once "connection.php";
+        $sql = "SELECT * FROM users WHERE email = '$email'";
+        $result = mysqli_query($conn, $sql);
+        $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
+        if ($user) {
+          if (password_verify($password, $user["password"])) {
+            header("Location: index.php");
+            die();
+          } else {
+            echo "<div class='alert danger'>Password does not match</div>";
+          }
+        } else {
+          echo "<div class='alert danger'>Email does not match</div>";
+        }
+      }
+      ?>
       <form method="post" action="index.php">
 
       <div class="input-group">
