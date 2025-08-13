@@ -16,6 +16,14 @@ if (isset($_SESSION["user"])) {
 </head>
 <body>
   <div class="container" id="signIn">
+    <div class="alert">
+      <?php
+        if (isset($_SESSION['status'])) {
+          echo "<h4>".$_SESSION['status']."</h4>";
+          unset($_SESSION['status']);
+        }
+      ?>
+    </div>
       <h1 class="form-title">Sign In</h1>
       <?php
       if (isset($_POST["SignIn"])) {
@@ -26,7 +34,7 @@ if (isset($_SESSION["user"])) {
         require_once "connection.php"; // establish connection to database
 
         // verify that email exists
-        $sql = "SELECT * FROM accounts_info WHERE email = '$email'";
+        $sql = "SELECT * FROM users WHERE email = '$email'";
         $result = mysqli_query($conn, $sql);
         $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
         if ($user) {
