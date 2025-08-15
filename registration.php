@@ -27,7 +27,7 @@
       $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;            //Enable implicit TLS encryption
       $mail->Port       = 587;
 
-      $mail->setFrom('lebronjames@gmail.com', 'Lebron');
+      $mail->setFrom('jeffreyli69420@gmail.com', 'WCLS');
       $mail->addAddress($email, $first_name . " " . $last_name);
       $mail->isHTML(true);                                  //Set email format to HTML
       $mail->Subject = 'WCLS Email Verification';
@@ -77,6 +77,22 @@
       // error if password is less than 8 chars
       if (strlen($password) < 8) {
         array_push($errors, "Password must be at least 8 characters long");
+      }
+
+      if (ctype_lower($password)) {
+        array_push($errors, "Password must contain an upper case character");
+      }
+      
+      if (ctype_upper($password)) {
+        array_push($errors, "Password must contain a lower case character");
+      }
+
+      if (preg_match('/[0-9]/', $password) == 0) {
+        array_push($errors, "Password must contain a number");
+      }
+
+      if (preg_match('/[^a-zA-Z0-9]/', $password) == 0) {
+        array_push($errors, "Password must contain a special character");
       }
 
       // error if passwords to not match
