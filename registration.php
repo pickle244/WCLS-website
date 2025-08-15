@@ -156,7 +156,7 @@
       <div class="input-group">
           <i class="fas fa-user"></i>
           <input type="text" name="fName" id="fName" placeholder="First Name" required>
-          <label for="fname">First Name</label>
+          <label for="fName">First Name</label>
       </div>
       <div class="input-group">
           <i class="fas fa-user"></i>
