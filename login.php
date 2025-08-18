@@ -82,7 +82,8 @@ if (isset($_SESSION["user"])) {
             <label for="password">Password</label>
         </div>
          <p class="recover">
-          <a href="#">Recover Password</a>
+          <!-- change # to forgot_password.php -->
+          <a href="forgot_password.php">Recover Password</a>
         </p>
         <input type="submit" class="btn" value="Sign In" name="SignIn">
       </form>
