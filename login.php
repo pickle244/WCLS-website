@@ -17,56 +17,10 @@ if (isset($_SESSION["user"])) {
 <body>
   <div class="container" id="signIn">
     <div class="alert">
-      <?php
-        if (isset($_SESSION['status'])) {
-          echo "<h4>".$_SESSION['status']."</h4>";
-          unset($_SESSION['status']);
-        }
-      ?>
+      <?php require 'script.php'?>
     </div>
       <h1 class="form-title">Sign In</h1>
-      <?php
-      if (isset($_POST["SignIn"])) {
-        $role = $_POST["role"];
-        $email = $_POST["email"];
-        $password = $_POST["password"];
-
-        require_once "connection.php"; // establish connection to database
-
-        // verify that email exists
-        $sql = "SELECT * FROM users WHERE email = '$email'";
-        $result = mysqli_query($conn, $sql);
-        $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
-        if ($user) {
-          // verify that password matches
-          if (password_verify($password, $user["password"])) {
-            // start session to indicate user is logged in
-            session_start();
-            $_SESSION["user"] = "yes";
-            header("Location: index.php");
-            die();
-          } else {
-            echo "<div class='alert danger'>Password does not match</div>";
-          }
-        } else {
-          echo "<div class='alert danger'>Email does not match</div>";
-
-        }
-      }
-      ?>
       <form method="post" action="login.php">
-
-      <!-- <div class="input-group">
-        <i class="fas fa-users"></i>
-        
-        <select name="role" id="role" required>
-          <option value="" disabled selected hidden>--Select Role--</option>
-          <option value="Parent">Parent</option>
-          <option value="Teacher">Teacher</option>
-          <option value="Admin">Admin</option>
-      </select>
-      </div> -->
-
         <div class="input-group">
             <i class="fas fa-envelope"></i>
             <input type="email" name="email" id="email" placeholder="Email" required>

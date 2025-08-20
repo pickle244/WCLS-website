@@ -1,3 +1,6 @@
+<?php
+session_start()
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,142 +13,10 @@
 <body>
   <div class="container" id="signup">
     <h1 class="form-title">Register</h1>
-    <?php
-    use PHPMailer\PHPMailer\PHPMailer;
-    use PHPMailer\PHPMailer\SMTP;
-    use PHPMailer\PHPMailer\Exception;
-
-    require 'vendor/autoload.php';
-    function send_verification_email($first_name, $last_name, $email, $verify_token)
-    {
-      $mail = new PHPMailer(true);
-      $mail->isSMTP();                                            //Send using SMTP
-      $mail->Host       = 'smtp.gmail.com';                     //Set the SMTP server to send through
-      $mail->SMTPAuth   = true;                                   //Enable SMTP authentication
-      $mail->Username   = 'jeffreyli69420@gmail.com';                     //SMTP username
-      $mail->Password   = 'puux avdy cqyn lvum';                               //SMTP password
-      $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;            //Enable implicit TLS encryption
-      $mail->Port       = 587;
-
-      $mail->setFrom('lebronjames@gmail.com', 'Lebron');
-      $mail->addAddress($email, $first_name . " " . $last_name);
-      $mail->isHTML(true);                                  //Set email format to HTML
-      $mail->Subject = 'WCLS Email Verification';
-
-      $email_template = "
-        <h2>You have registered with Wellesley Chinese Language School</h2>
-        <h5>Verify your email address with the link below:</h5>
-        <br>
-        <a href='http://localhost/WCLS-website/verify-email.php?token=$verify_token'>Verify</a>
-      ";
-
-      $mail->Body = $email_template;
-      $mail->send();
-      echo 'Verification email has been sent';
-    }
-
-    if(isset($_POST["SignUp"])) {
-      // store user inputs
-      $role = $_POST["role"];
-      $first_name = $_POST["fName"];
-      $last_name = $_POST["lName"];
-      $email = $_POST["email"];
-      $password = $_POST["password"];
-      $password_confirm = $_POST["passwordConfirm"];
-      $verify_token = md5(rand());
-
-      // hash password for security
-      $password_hash = password_hash($password, PASSWORD_DEFAULT);
-
-      $errors = array();
-
-      // if any field is missing, push respective errors
-      if (empty($first_name) OR 
-          empty($last_name) OR 
-          empty($email) OR 
-          empty($password) OR
-          empty($password_confirm))
-      {
-        array_push($errors, "All fields are required");
-      }
-
-      // error if email is not proper format
-      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        array_push($errors, "Invalid email");
-      }
-
-      // error if password is less than 8 chars
-      if (strlen($password) < 8) {
-        array_push($errors, "Password must be at least 8 characters long");
-      }
-
-      // error if passwords to not match
-      if ($password !== $password_confirm) {
-        array_push($errors, "Passwords do not match");
-      }
-
-      /*
-      if any errors exist, prevent registration
-      otherwise, add info to database 
-      */
-      if (count($errors) > 0) {
-        foreach ($errors as $error) {
-          echo "<div class='alert danger'>$error</div>";
-        }
-      } else {
-        require_once "connection.php"; // establish connection to database
-
-        // verify that the email is not already being used
-        $sql = "SELECT * FROM users WHERE email = '$email'";
-        $result = mysqli_query($conn, $sql);
-        $user = mysqli_fetch_array($result, MYSQLI_ASSOC);
-        if ($user) {
-          echo "<div class='alert danger'>Email already exists</div>";
-        } else {
-          $sql = "INSERT INTO users (
-            first_name, 
-            last_name, 
-            email, 
-            password, 
-            account_type,
-            verify_token) VALUES (?, ?, ?, ?, ?, ?)";
-          $stmt = mysqli_stmt_init($conn);
-          $prepStmt = mysqli_stmt_prepare($stmt, $sql); // create mysql statement
-          if ($prepStmt) {
-            // insert respective inputs into database columns
-            mysqli_stmt_bind_param(
-              $stmt, 
-              "ssssss", 
-              $first_name, 
-              $last_name,
-              $email,
-              $password_hash,
-              $role,
-              $verify_token);
-            mysqli_stmt_execute($stmt);
-            send_verification_email(
-              "$first_name", 
-              "$last_name", 
-              "$email", 
-              "$verify_token");
-
-            // start session to indicate user is registered and logged in
-            session_start();
-            $_SESSION["status"] = "Registration successful! Please verify your email address";
-            header("Location: login.php");
-            die();
-          } else {
-            $_SESSION["status"] = "Registration unsuccessful";
-            header("Location: registration.php");
-          }
-        }
-      }
-    }
-    ?>
+    <?php require 'script.php';?>
     <form method="post" action="registration.php">
     <div class="input-group">
       <i class="fas fa-users"></i>
-      <!-- <label for="role">Select Role</label> -->
       <select name="role" id="role" required>
         <option value="">--Select Role--</option>
         <option value="Parent">Parent</option>

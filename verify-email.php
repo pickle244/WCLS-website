@@ -15,25 +15,25 @@ if (isset($_GET['token'])) {
       $update_query = "UPDATE users SET verify_status='1' WHERE verify_token='$clicked_token' LIMIT 1";
       $update_query_run = mysqli_query($conn, $update_query);
       if ($update_query_run) {
-        $_SESSION['status'] = "Verification successful. You can now login";
+        $_SESSION['registration_status'] = "Verification successful. You can now login";
         header("Location: login.php");
         exit(0);
       } else {
-        $_SESSION['status'] = "Verification failed";
+        $_SESSION['registration_status'] = "Verification failed";
         header("Location: login.php");
         exit(0);
       }
     } else {
-      $_SESSION['status'] = "Email already verified. You can now login";
+      $_SESSION['registration_status'] = "Email already verified. You can now login";
       header("Location: login.php");
       exit(0);
     }
   } else {
-    $_SESSION['status'] = "Invalid token";
+    $_SESSION['registration_status'] = "Invalid token";
     header("Location: login.php");
   }
 } else {
-  $_SESSION['status'] = "Not allowed";
+  $_SESSION['registration_status'] = "Not allowed";
   header("Location: login.php");
 }
 ?>
