@@ -1,11 +1,12 @@
 <?php
 session_start();
-// if user is not logged in, redirect them to sign in
+// if user is not logged in, redirect them to sign in page
 if (!isset($_SESSION["user"])) {
   header("Location: login.php");
 } else {
-  echo $_SESSION['user'];
-  echo $_SESSION['account_type'];
+  // comment out these code because it caused unexpected word "3 parent" after login.
+  // echo $_SESSION['user'];
+  // echo $_SESSION['account_type'];
 }
 ?>
 <!DOCTYPE html>

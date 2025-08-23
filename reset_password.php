@@ -79,7 +79,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
         $d->execute();
         $d->close();
 
-        $_SESSION['status'] = 'Password reset successful! Please login.';
+        $_SESSION['registration_status'] = 'Password reset successful! Please login.';
         header('Location: login.php');
         exit();
     }
@@ -91,6 +91,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
 <meta charset="UTF-8">
 <title>Reset Password</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
 </head>
 <body>
   <div class="container">
@@ -100,8 +102,14 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
       <!-- Token invalid or expired -->
       <div class="alert" style="color: red;">Reset link is invalid or has expired.</div>
     <?php else: ?>
-      <?php if (!empty($error)): ?>
-        <div class="alert" style="color: red;"><?php echo htmlspecialchars($error); ?></div>
+      <?php if (!empty($errorMsgs)): ?>
+        <div class="alert danger">
+          <ul style="margin-left:1rem;">
+            <?php foreach ($errorMsgs as $msg): ?>
+              <li><?php echo htmlspecialchars($msg, ENT_QUOTES, 'utf-8'); ?></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
       <?php endif; ?>
 
       <!-- Show new password form only if the token is valid -->
@@ -109,16 +117,19 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
         <div class="input-group">
           <i class="fas fa-lock"></i>
           <input type="password" name="password" id="rp_password" placeholder="New Password" required>
+          <span class="toggle-password"><i class="fas fa-eye"></i></span>
           <label for="rp_password">New Password</label>
         </div>
         <div class="input-group">
           <i class="fas fa-lock"></i>
           <input type="password" name="passwordConfirm" id="rp_passwordConfirm" placeholder="Confirm New Password" required>
+          <span class="toggle-password"><i class="fas fa-eye"></i></span>
           <label for="rp_passwordConfirm">Confirm New Password</label>
         </div>
         <input type="submit" class="btn" value="Set New Password" name="reset_password">
       </form>
     <?php endif; ?>
   </div>
+  <script src="script.js"></script>
 </body>
 </html>

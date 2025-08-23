@@ -114,13 +114,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
     <h1 class="form-title">Forgot Password</h1>
 
     <!-- Success flash -->
-     <?php if ($flash): ?>
-      <div class="alert" style="color: green;"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'utf-8'); ?></div>
-      <?php endif; ?>
+    <?php if ($flash): ?>
+    <div class="alert success"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'utf-8'); ?></div>
+    <?php endif; ?>
 
-      <!-- validation error (if invalid email format, etc) -->
+    <!-- validation error (if invalid email format, etc) -->
     <?php if (!empty($error)): ?>
-      <div class="alert danger" style="color: red;"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'utf-8'); ?></div>
+    <div class="alert danger"><?php echo htmlspecialchars($error, ENT_QUOTES, 'utf-8'); ?></div>
     <?php endif; ?>
 
     <!-- user enters their email to receive the reset link -->

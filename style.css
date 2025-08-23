@@ -188,3 +188,16 @@ select:focus{
     border-bottom:2px solid hsl(327,90%,28%);
     background-color:transparent;
 } 
+
+/* For forgot password */
+/* lightweight alert utility */
+.alert{
+  margin: 0.5rem 2rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.alert.success{ background:#e6ffed; border:1px solid #b7f5c3; color:#165b31; }
+.alert.danger{  background:#ffecec; border:1px solid #f5b7b7; color:#7d1a1a; }
+.alert.info{    background:#eef5ff; border:1px solid #bdd1ff; color:#1a3a7d; }
