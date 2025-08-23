@@ -1,27 +1,44 @@
-<?php
+<?php 
 // forgot_password.php
-// Goal: user enters email -> we create a token + expiry (DATETIME) -> send reset link via email.
+// user enters email -> we create a token + expiry (DATETIME) -> send reset link via email.
 
 session_start();
 
+/* ------------------------------------------
+ * Use statements for PHPMailer (namespace imports)
+ *    - Tell PHP which classes we will use.
+ * ------------------------------------------ */
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// falsh message(one time message) ---
+/* ------------------------------------------
+ * Flash message (one-time banner shown after redirect)
+ *    - We read from $_SESSION['registration_status'] and then unset it (show once).
+ * ------------------------------------------ */
 $flash = '';
 if (isset($_SESSION['registration_status'])) {
   $flash = $_SESSION['registration_status'];
-    unset($_SESSION['registration_status']); // show once
-  }
+  unset($_SESSION['registration_status']); // show once
+}
 
-  $error = "";
- 
+// Error holder (used for invalid email format etc.)
+$error = "";
+
+/* ------------------------------------------
+ * Dependencies (autoload + DB connection)
+ *    - Load PHPMailer via Composer autoload and open DB connection.
+ * ------------------------------------------ */
 require 'vendor/autoload.php';
 require 'connection.php';
 
 
-$info = $error = '';
-
+/* ------------------------------------------
+ * Handle POST (user submits email to request reset link)
+ *    - Validate email format.
+ *    - If user exists: create token, save expiry (1 hour), clean old tokens, send email with link.
+ *    - Always show the same success message for security reasons.
+ *    - Redirect back to this page so flash message appears.
+ * ------------------------------------------ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
     // --- Get and validate email from form ---
     $email = trim($_POST['email'] ?? '');
@@ -43,9 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
         if ($exists) {
             // --- Create a raw token and an expiry (DATETIME string) valid for 1 hour ---
             $token     = bin2hex(random_bytes(32));          // raw token to send to the user
-            $expiresAt = date('Y-m-d H:i:s', time() + 3600); // store as DATETIME to match your schema
+            $expiresAt = date('Y-m-d H:i:s', time() + 3600); // store as DATETIME 
 
-            // Remove old tokens for this email (cleanup is good practice)
+            // Remove old tokens for this email (cleanup
             $del = $conn->prepare("DELETE FROM password_reset WHERE email = ?");
             $del->bind_param("s", $email);
             $del->execute();
@@ -76,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;  // TLS
                 $mail->Port       = 587;
 
-                // setFrom should match your authenticated account for best deliverability
+                // setFrom should match the authenticated account 
                 $mail->setFrom('jeffreyli69420@gmail.com', 'WCLS');
                 $mail->addAddress($email);                           // Recipient
 
@@ -96,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
             }
         }
 
+        // Always show the same message regardless of whether the email exists
         $_SESSION['registration_status'] = 'If that email exists, a reset link has been sent.';
         header('Location: forgot_password.php');
         exit();
@@ -113,17 +131,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
   <div class="container">
     <h1 class="form-title">Forgot Password</h1>
 
-    <!-- Success flash -->
+    <!-- Success flash (green banner after redirect) -->
     <?php if ($flash): ?>
     <div class="alert success"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'utf-8'); ?></div>
     <?php endif; ?>
 
-    <!-- validation error (if invalid email format, etc) -->
+    <!-- Validation error (such as invalid email format) -->
     <?php if (!empty($error)): ?>
     <div class="alert danger"><?php echo htmlspecialchars($error, ENT_QUOTES, 'utf-8'); ?></div>
     <?php endif; ?>
 
-    <!-- user enters their email to receive the reset link -->
+    <!-- Form: user enters their email to receive the reset link -->
     <form method="post" action="forgot_password.php">
       <div class="input-group">
         <i class="fas fa-envelope"></i>
@@ -132,8 +150,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
       </div>
       <input type="submit" class="btn" value="Send Reset Link" name="reset_request">
     </form>
+
+    <!-- Link back to Login page -->
     <div class="links" style="margin-top: 1rem;">
       <a href="login.php">Back to Login</a>
+    </div>
   </div>
 </body>
 </html>
