@@ -4,13 +4,21 @@
 
 session_start();
 
-// 1) DB connection
-require 'connection.php';
-
-// 2) PHPMailer (installed via Composer)
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+
+// falsh message(one time message) ---
+$flash = '';
+if (isset($_SESSION['registration_status'])) {
+  $flash = $_SESSION['registration_status'];
+    unset($_SESSION['registration_status']); // show once
+  }
+
+  $error = "";
+ 
 require 'vendor/autoload.php';
+require 'connection.php';
+
 
 $info = $error = '';
 
@@ -22,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
         // Basic server-side validation
         $error = 'Please enter a valid email address.';
     } else {
-        // (Optional) Check if email exists in `users` table.
+        //  Check if email exists in `users` table.
         $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
         $stmt->bind_param("s", $email);
         $stmt->execute();
@@ -57,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
                 $token
             );
 
-            // --- Send email (use the SAME SMTP settings as your teammate) ---
+            // --- Send email  ---
             try {
                 $mail = new PHPMailer(true);
                 $mail->isSMTP();                                     // Use SMTP
@@ -84,14 +92,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
 
                 $mail->send();
             } catch (Exception $e) {
-                // For local debugging you may temporarily echo $mail->ErrorInfo
                 // echo 'Mailer Error: ' . $mail->ErrorInfo;
             }
         }
 
-        // Always show the same status to avoid leaking which emails exist
-        $_SESSION['status'] = 'If that email exists, a reset link has been sent.';
-        header('Location: login.php');
+        $_SESSION['registration_status'] = 'If that email exists, a reset link has been sent.';
+        header('Location: forgot_password.php');
         exit();
     }
 }
@@ -107,13 +113,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
   <div class="container">
     <h1 class="form-title">Forgot Password</h1>
 
-    <?php if ($info): ?>
-      <div class="alert" style="color: green;"><?php echo htmlspecialchars($info); ?></div>
-    <?php elseif ($error): ?>
-      <div class="alert" style="color: red;"><?php echo htmlspecialchars($error); ?></div>
+    <!-- Success flash -->
+     <?php if ($flash): ?>
+      <div class="alert" style="color: green;"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'utf-8'); ?></div>
+      <?php endif; ?>
+
+      <!-- validation error (if invalid email format, etc) -->
+    <?php if (!empty($error)): ?>
+      <div class="alert danger" style="color: red;"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'utf-8'); ?></div>
     <?php endif; ?>
 
-    <!-- Simple form: user enters their email to receive the reset link -->
+    <!-- user enters their email to receive the reset link -->
     <form method="post" action="forgot_password.php">
       <div class="input-group">
         <i class="fas fa-envelope"></i>
@@ -122,6 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_request'])) {
       </div>
       <input type="submit" class="btn" value="Send Reset Link" name="reset_request">
     </form>
+    <div class="links" style="margin-top: 1rem;">
+      <a href="login.php">Back to Login</a>
   </div>
 </body>
 </html>

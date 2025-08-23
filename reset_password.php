@@ -7,35 +7,35 @@ require 'connection.php';
 
 $invalid = false;        // Controls whether we show the form
 $emailForReset = '';     // Email fetched from table for this token
-$error = '';             // Form error (e.g., password mismatch)
+$errorMsgs = [];             // Form error 
+$statusMsg='';  
 
 // 1) Read token from URL and validate existence/expiry (expires is DATETIME)
 $token = $_GET['token'] ?? '';
 if ($token === '') {
     $invalid = true; // No token provided at all
 } else {
-    // Look up the row in your table (singular name)
     $stmt = $conn->prepare("SELECT email, expires FROM password_reset WHERE token = ? LIMIT 1");
     $stmt->bind_param("s", $token);
     $stmt->execute();
     $stmt->bind_result($emailForReset, $expiresDT);
-
-    if (!$stmt->fetch()) {
-        // Token not found
-        $invalid = true;
-    }
+    $found = $stmt->fetch();
     $stmt->close();
 
-    // Compare DATETIME (string) with current time by converting to timestamp
-    if (!$invalid && strtotime($expiresDT) <= time()) {
-        // Optional: clean up this expired token row
-        $d = $conn->prepare("DELETE FROM password_reset WHERE token = ?");
-        $d->bind_param("s", $token);
-        $d->execute();
-        $d->close();
-
-        $invalid = true; // Token expired
+    if (!$found) {
+        // Token not found
+        $invalid = true;
+    }else{
+      // Compare DATETIME (string) with current time by converting to timestamp
+      if (strtotime($expiresDT) <= time()) {
+          // clean up this expired token row
+          $del = $conn->prepare("DELETE FROM password_reset WHERE token = ?");
+          $del->bind_param("s", $token);
+          $del->execute();
+          $del->close();
+          $invalid = true; // Token expired
     }
+}
 }
 
 // 2) Handle POST: user submits new password
@@ -43,10 +43,27 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
     $newPass = $_POST['password'] ?? '';
     $confirm = $_POST['passwordConfirm'] ?? '';
 
-    // Basic checks (add your own complexity rules if needed)
+
+    if (strlen($newPass) < 8) {
+      $errorMsgs[] = 'Password must be at least 8 characters long';
+      }
+    if (!preg_match('/[A-Z]/', $newPass)) {
+        $errorMsgs[] = 'Password must contain an upper-case letter';
+    }
+    if (!preg_match('/[a-z]/', $newPass)) {
+        $errorMsgs[] = 'Password must contain a lower-case letter';
+    }
+    if (!preg_match('/\d/', $newPass)) {              // same as /[0-9]/
+        $errorMsgs[] = 'Password must contain a number';
+    }
+    if (!preg_match('/[^a-zA-Z0-9]/', $newPass)) {
+        $errorMsgs[] = 'Password must contain a special character';
+    }
     if ($newPass === '' || $newPass !== $confirm) {
-        $error = 'Passwords do not match.';
-    } else {
+        $errorMsgs[] = 'Passwords do not match';
+    }
+
+    if(empty($errorMsgs)){
         // Hash the new password (users.password stores hash)
         $newHash = password_hash($newPass, PASSWORD_DEFAULT);
 
