@@ -67,18 +67,22 @@
       array_push($errors, "Password must be at least 8 characters long");
     }
 
+    // error if password only contains lowercase
     if (ctype_lower($password)) {
       array_push($errors, "Password must contain an upper case character");
     }
     
+    // error if password only contains uppercase
     if (ctype_upper($password)) {
       array_push($errors, "Password must contain a lower case character");
     }
 
+    // error if password does not contain a number
     if (preg_match('/[0-9]/', $password) == 0) {
       array_push($errors, "Password must contain a number");
     }
 
+    // error if password does not contain a special character
     if (preg_match('/[^a-zA-Z0-9]/', $password) == 0) {
       array_push($errors, "Password must contain a special character");
     }
@@ -114,7 +118,7 @@
           account_type,
           verify_token) VALUES (?, ?, ?, ?, ?, ?)";
         $stmt = mysqli_stmt_init($conn);
-        $prepStmt = mysqli_stmt_prepare($stmt, $sql); // create mysql statement
+        $prepStmt = mysqli_stmt_prepare($stmt, $sql); // create statement to execute
         if ($prepStmt) {
           // insert respective inputs into database columns
           mysqli_stmt_bind_param(
@@ -146,6 +150,7 @@
     }
   }
 
+  // display the session variable
   if (isset($_SESSION['registration_status'])) {
     echo "<h4>".$_SESSION['registration_status']."</h4>";
     unset($_SESSION['registration_status']);
@@ -175,14 +180,16 @@
         echo "<div class='alert danger'>Password does not match</div>";
       }
     } else {
-      echo "<div class='alert danger'>Email does not match</div>";
+      echo "<div class='alert danger'>Email does not exist</div>";
 
     }
   }
 ?>
 
 <?php 
+  // if create course button is clicked
   if (isset($_POST['CreateCourse'])) {
+    // store course info
     $program = $_POST['program'];
     $course_code = $_POST['course_code'];
     $course_name = $_POST['course_name'];
@@ -196,7 +203,12 @@
 
     require_once 'connection.php';
 
-    $query = "INSERT INTO courses (
+    // verify course does not exist
+    $query = "SELECT * FROM courses WHERE course_code = '$course_code'";
+    $result = mysqli_query($conn, $query);
+    $course = mysqli_fetch_array($result, MYSQLI_ASSOC);
+    if (!$course) {
+      $query = "INSERT INTO courses (
         program, 
         course_code, 
         course_name, 
@@ -206,34 +218,38 @@
         year,
         term,
         room_number,
-        teacher_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        teacher_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    $stmt = mysqli_stmt_init($conn);
-    $prepStmt = mysqli_stmt_prepare($stmt, $query);
-    if ($prepStmt) {
-      mysqli_stmt_bind_param(
-        $stmt,
-        'sssdsiisii',
-        $program, 
-        $course_code,
-        $course_name,
-        $course_price,
-        $course_description,
-        $capacity,
-        $year,
-        $term,
-        $room,
-        $teacher_id
-      );
+      $stmt = mysqli_stmt_init($conn);
+      $prepStmt = mysqli_stmt_prepare($stmt, $query);
+      if ($prepStmt) {
+        mysqli_stmt_bind_param(
+          $stmt,
+          'sssdsiisii',
+          $program, 
+          $course_code,
+          $course_name,
+          $course_price,
+          $course_description,
+          $capacity,
+          $year,
+          $term,
+          $room,
+          $teacher_id
+        );
 
-      if (mysqli_stmt_execute($stmt)) {
-            echo "Course created successfully!";
-        } else {
-            echo "Execute failed: " . mysqli_stmt_error($stmt);
-        }
+        if (mysqli_stmt_execute($stmt)) {
+              echo "Course created successfully!";
+          } else {
+              // error inserting into table
+              echo "Execute failed: " . mysqli_stmt_error($stmt);
+          }
+      } else {
+          // error preparing statement
+          echo "Prepare failed: " . mysqli_error($conn);
+      }
     } else {
-        echo "Prepare failed: " . mysqli_error($conn);
+      echo "A course with this course code already exists";
     }
   }
 ?>
