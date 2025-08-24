@@ -181,117 +181,59 @@
   }
 ?>
 
-<?php if (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Admin'): ?>
-  <?php require 'connection.php'?>
-  <h2>Admin dashboard</h2>
-  <h3>Courses</h3>
-  <table>
-    <tr>
-      <th>name</th>
-      <th>code</th>
-      <th>price</th>
-      <th>description</th>
-      <th>program</th>
-      <th>term</th>
-      <th>year</th>
-      <th>teacher</th>
-      <th>capacity</th>
-      <th>room</th>
-    </tr>
-    <?php
-      $query = "SELECT * FROM courses";
-      $courses = $conn->query($query);
+<?php 
+  if (isset($_POST['CreateCourse'])) {
+    $program = $_POST['program'];
+    $course_code = $_POST['course_code'];
+    $course_name = $_POST['course_name'];
+    $course_price = $_POST['course_price'];
+    $course_description = $_POST['course_description'];
+    $teacher_id = $_POST['teacher_id'];
+    $term = $_POST['term'];
+    $year = $_POST['year'];
+    $capacity = $_POST['capacity'];
+    $room = $_POST['room'];
 
-      if ($courses) {
-        while ($row = $courses->fetch_assoc()) {
-          $teacher_id = $row['teacher_id'];
-          $query = "SELECT
-              u.first_name,
-              u.last_name
-            FROM
-              teachers as t
-            JOIN
-              users AS u ON t.user_id = u.id
-            WHERE
-              t.id = '$teacher_id'";
-          $teacher = $conn->query($query)->fetch_assoc();
-          "<tr>
-            <td>" . $row['course_name'] . "</td>
-            <td>" . $row['course_code'] . "</td>
-            <td>" . $row['course_price'] . "</td>
-            <td>" . $row['course_description'] . "</td>
-            <td>" . $row['program'] . "</td>
-            <td>" . $row['term'] . "</td>
-            <td>" . $row['year'] . "</td>
-            <td>" . $teacher['first_name'] . $teacher['last_name']. "</td>
-            <td>" . $row['default_capacity'] . "</td>
-            <td>" . $row['room_number'] . "</td>
-          </tr>";
+    require_once 'connection.php';
+
+    $query = "INSERT INTO courses (
+        program, 
+        course_code, 
+        course_name, 
+        course_price,
+        course_description, 
+        default_capacity,
+        year,
+        term,
+        room_number,
+        teacher_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    $stmt = mysqli_stmt_init($conn);
+    $prepStmt = mysqli_stmt_prepare($stmt, $query);
+    if ($prepStmt) {
+      mysqli_stmt_bind_param(
+        $stmt,
+        'sssdsiisii',
+        $program, 
+        $course_code,
+        $course_name,
+        $course_price,
+        $course_description,
+        $capacity,
+        $year,
+        $term,
+        $room,
+        $teacher_id
+      );
+
+      if (mysqli_stmt_execute($stmt)) {
+            echo "Course created successfully!";
+        } else {
+            echo "Execute failed: " . mysqli_stmt_error($stmt);
         }
-      }
-    ?>
-  </table>
-  <a href="logout.php">Logout</a>
-  <div class="container" class='create_course'>
-    <h1 class="form-title">Create Course</h1>
-    <form method="post" action="index.php">
-    <div class="input-group">
-      <i class="fas fa-users"></i>
-      <select name="program" id="program" required>
-        <option value="">--Select Program--</option>
-        <option value="Sunday">Sunday</option>
-        <option value="Afterschool">Afterschool</option>
-      </select>
-    </div>
-      <div class="input-group">
-          <i class="fas fa-user"></i>
-          <input type="text" name="course_code" id="course_code" placeholder="#####" required>
-          <label for="course_code">Course Code</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-user"></i>
-          <input type="text" name="course_name" id="course_name" placeholder="Name" required>
-          <label for="course_name">Course Name</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-envelope"></i>
-          <input type="number" name="course_price" id="course_price" placeholder="$0.00" min='0' step='0.01' required>
-          <label for="course_price">Course Price</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-lock"></i>
-          <input type="text" name="course_description" id="course_description" placeholder="Type..." required>
-          <label for="course_description">Course Description</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-lock"></i>
-          <input type="text" name="teacher_id" id="teacher_id" placeholder="#" required>
-          <label for="teacher_id">Teacher ID</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-lock"></i>
-          <input type="text" name="term" id="term" placeholder="Term" required>
-          <label for="term">Term</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-lock"></i>
-          <input type="number" name="year" id="year" placeholder="YYYY" required>
-          <label for="year">Year</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-lock"></i>
-          <input type="number" name="capacity" id="capacity" placeholder="#" required>
-          <label for="capacity">Capacity</label>
-      </div>
-      <div class="input-group">
-          <i class="fas fa-lock"></i>
-          <input type="number" name="room" id="room" placeholder="#" required>
-          <label for="room">Room</label>
-      </div>
-      <input type="submit" class="btn" value="Create Course" name="CreateCourse">
-    </form>
-  </div>
-<?php elseif (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Parent'):?>
-  <h2>Parent dashboard</h2>
-  <a href="logout.php">Logout</a>
-<?php endif;?>
+    } else {
+        echo "Prepare failed: " . mysqli_error($conn);
+    }
+  }
+?>
