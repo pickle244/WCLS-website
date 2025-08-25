@@ -253,3 +253,60 @@
     }
   }
 ?>
+
+<?php
+  if (isset($_POST['CreateTeacher'])) {
+    // store teacher info
+    $user_id = $_POST['user_id'];
+    $image = $_POST['image'];
+    $bio = $_POST['bio'];
+    $title = $_POST['title'];
+
+    require_once 'connection.php';
+
+    $query = "SELECT * FROM users WHERE id = '$user_id'";
+    $user = $conn->query($query)->fetch_assoc();
+
+    if ($user['account_type'] == 'Teacher') {
+
+      // verify teacher does not exist
+      $query = "SELECT * FROM teachers WHERE user_id = '$user_id'";
+      $result = mysqli_query($conn, $query);
+      $teacher = mysqli_fetch_array($result, MYSQLI_ASSOC);
+      if (!$teacher) {
+        $query = "INSERT INTO teachers (
+          user_id, 
+          image, 
+          bio, 
+          title) VALUES (?, ?, ?, ?)";
+
+        $stmt = mysqli_stmt_init($conn);
+        $prepStmt = mysqli_stmt_prepare($stmt, $query);
+        if ($prepStmt) {
+          mysqli_stmt_bind_param(
+            $stmt,
+            'isss',
+            $user_id, 
+            $image,
+            $bio,
+            $title
+          );
+
+          if (mysqli_stmt_execute($stmt)) {
+                echo "Teacher created successfully!";
+          } else {
+              // error inserting into table
+              echo "Execute failed: " . mysqli_stmt_error($stmt);
+          }
+        } else {
+            // error preparing statement
+            echo "Prepare failed: " . mysqli_error($conn);
+        }
+      } else {
+        echo "A teeacher with this user_id already exists";
+      }
+    } else {
+      echo "User with specified user_id is not a teacher";
+    }
+  }
+?>

@@ -22,67 +22,69 @@ if (!isset($_SESSION["user"])) {
   <?php require 'script.php'?>
   <?php if (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Admin'): ?>
     <?php require 'connection.php'?>
-    <h2>Admin dashboard</h2>
-    <h3>Courses</h3>
-    <table>
-      <tr>
-        <th>name</th>
-        <th>code</th>
-        <th>price</th>
-        <th>description</th>
-        <th>program</th>
-        <th>term</th>
-        <th>year</th>
-        <th>teacher</th>
-        <th>capacity</th>
-        <th>room</th>
-      </tr>
-      <?php
-        $query = "SELECT * FROM courses";
-        $courses = $conn->query($query);
-
-        if ($courses) {
-          while ($row = $courses->fetch_assoc()) {
-            $teacher_id = $row['teacher_id'];
-            $query = "SELECT
-                u.first_name,
-                u.last_name
-              FROM
-                teachers as t
-              JOIN
-                users AS u ON t.user_id = u.id
-              WHERE
-                t.id = '$teacher_id'";
-            $teacher = $conn->query($query)->fetch_assoc();
-            echo
-            "<tr>
-              <td>" . $row['course_name'] . "</td>
-              <td>" . $row['course_code'] . "</td>
-              <td>" . $row['course_price'] . "</td>
-              <td>" . $row['course_description'] . "</td>
-              <td>" . $row['program'] . "</td>
-              <td>" . $row['term'] . "</td>
-              <td>" . $row['year'] . "</td>
-              <td>" . $teacher['first_name'] . $teacher['last_name']. "</td>
-              <td>" . $row['default_capacity'] . "</td>
-              <td>" . $row['room_number'] . "</td>
-            </tr>";
-          }
-        }
-      ?>
-    </table>
+    <h1>Admin dashboard</h1>
     <a href="logout.php">Logout</a>
-    <div class="container" class='create_course'>
+    <div class='container' id='course_list'>
+      <h3>Courses</h3>
+      <table>
+        <tr>
+          <th>name</th>
+          <th>code</th>
+          <th>price</th>
+          <th>description</th>
+          <th>program</th>
+          <th>term</th>
+          <th>year</th>
+          <th>teacher</th>
+          <th>capacity</th>
+          <th>room</th>
+        </tr>
+        <?php
+          $query = "SELECT * FROM courses";
+          $courses = $conn->query($query);
+
+          if ($courses) {
+            while ($row = $courses->fetch_assoc()) {
+              $teacher_id = $row['teacher_id'];
+              $query = "SELECT
+                  u.first_name,
+                  u.last_name
+                FROM
+                  teachers as t
+                JOIN
+                  users AS u ON t.user_id = u.id
+                WHERE
+                  t.id = '$teacher_id'";
+              $teacher = $conn->query($query)->fetch_assoc();
+              echo
+              "<tr>
+                <td>" . $row['course_name'] . "</td>
+                <td>" . $row['course_code'] . "</td>
+                <td>" . $row['course_price'] . "</td>
+                <td>" . $row['course_description'] . "</td>
+                <td>" . $row['program'] . "</td>
+                <td>" . $row['term'] . "</td>
+                <td>" . $row['year'] . "</td>
+                <td>" . $teacher['first_name'] . $teacher['last_name']. "</td>
+                <td>" . $row['default_capacity'] . "</td>
+                <td>" . $row['room_number'] . "</td>
+              </tr>";
+            }
+          }
+        ?>
+      </table>
+    </div>
+    <div class="container" id='create_course'>
       <h1 class="form-title">Create Course</h1>
       <form method="post" action="index.php">
-      <div class="input-group">
-        <i class="fas fa-users"></i>
-        <select name="program" id="program" required>
-          <option value="">--Select Program--</option>
-          <option value="Sunday">Sunday</option>
-          <option value="Afterschool">Afterschool</option>
-        </select>
-      </div>
+        <div class="input-group">
+          <i class="fas fa-users"></i>
+          <select name="program" id="program" required>
+            <option value="">--Select Program--</option>
+            <option value="Sunday">Sunday</option>
+            <option value="Afterschool">Afterschool</option>
+          </select>
+        </div>
         <div class="input-group">
             <i class="fas fa-user"></i>
             <input type="text" name="course_code" id="course_code" placeholder="#####" required>
@@ -129,6 +131,72 @@ if (!isset($_SESSION["user"])) {
             <label for="room">Room</label>
         </div>
         <input type="submit" class="btn" value="Create Course" name="CreateCourse">
+      </form>
+    </div>
+    <div class='container' id='teacher_list'>
+      <h3>Teachers</h3>
+      <table>
+        <tr>
+          <th>name</th>
+          <th>user id</th>
+          <th>title</th>
+          <th>bio</th>
+          <th>image</th>
+        </tr>
+        <?php
+          $query = "SELECT * FROM teachers";
+          $teachers = $conn->query($query);
+
+          if ($teachers) {
+            while ($row = $teachers->fetch_assoc()) {
+              $id = $row['id'];
+              $query = "SELECT
+                  u.first_name,
+                  u.last_name
+                FROM
+                  teachers as t
+                JOIN
+                  users AS u ON t.user_id = u.id
+                WHERE
+                  t.id = '$id'";
+              $user = $conn->query($query)->fetch_assoc();
+              echo
+              "<tr>
+                <td>" . $user['first_name'] . $user['last_name']. "</td>
+                <td>" . $row['user_id'] . "</td>
+                <td>" . $row['title'] . "</td>
+                <td>" . $row['bio'] . "</td>
+                <td>" . $row['image'] . "</td>
+              </tr>";
+            }
+          }
+        ?>
+      </table>
+    </div>
+    <div class="container" id='create_teacher'>
+      <h1 class="form-title">Create Teacher</h1>
+      <form method="post" action="index.php">
+        <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="number" name="user_id" id="user_id" placeholder="#" required>
+            <label for="user_id">User ID</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="text" name="image" id="image" placeholder="image.png" required>
+            <label for="image">Image</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-envelope"></i>
+            <input type="text" name="bio" id="bio" placeholder="Type here..." required>
+            <label for="bio">Bio</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="text" name="title" id="title" placeholder="Type..." required>
+            <label for="title">Title</label>
+        </div>
+        <input type="submit" class="btn" value="Create Teacher" name="CreateTeacher">
       </form>
     </div>
   <?php elseif (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Parent'):?>
