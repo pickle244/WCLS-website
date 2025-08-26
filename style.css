@@ -201,3 +201,49 @@ select:focus{
 .alert.success{ background:#e6ffed; border:1px solid #b7f5c3; color:#165b31; }
 .alert.danger{  background:#ffecec; border:1px solid #f5b7b7; color:#7d1a1a; }
 .alert.info{    background:#eef5ff; border:1px solid #bdd1ff; color:#1a3a7d; }
+
+/* Top header with quick links */
+.admin-header{
+  max-width: 1200px;
+  margin: 16px auto 8px;
+  padding: 0 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.admin-nav{ display:flex; gap:12px; }
+.admin-link{
+  display:inline-block;
+  padding:8px 12px;
+  border-radius:10px;
+  text-decoration:none;
+  background:#ffffffcc;
+  color:#111;
+  box-shadow:0 2px 8px rgba(0,0,0,.12);
+}
+.admin-link.logout{ background:#111; color:#fff; }
+.admin-link:hover{ opacity:.9; }
+
+/* Home view with two large cards */
+.admin-home{
+  max-width: 1200px;
+  margin: 32px auto;
+  padding: 0 16px;
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap:20px;
+}
+.home-card{
+  display:block;
+  background:#fff;
+  border-radius:14px;
+  padding:22px 20px;
+  box-shadow:0 10px 30px rgba(0,0,0,.12);
+  text-decoration:none;
+  color:inherit;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.home-card:hover{ transform: translateY(-2px); box-shadow:0 14px 34px rgba(0,0,0,.16); }
+.home-icon{ font-size:32px; }
+.home-title{ margin-top:8px; font-weight:700; font-size:18px; }
+.home-sub{ margin-top:4px; color:#666; font-size:13px; }

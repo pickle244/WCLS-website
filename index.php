@@ -8,6 +8,16 @@ if (!isset($_SESSION["user"])) {
   // echo $_SESSION['user'];
   // echo $_SESSION['account_type'];
 }
+
+// mini router using query string like ?view=home / ?view=courses ?view=teachers
+$view = isset($_GET['view']) ? $_GET['view']: 'home';
+function view_url($v) {
+  // build clean link to the same page with different view
+  $base = strtok($_SERVER['REQUEST_URI'], '?');
+  return htmlspecialchars($base. '?view='.$v, ENT_QUOTES, 'UTF-8');
+}
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -22,8 +32,33 @@ if (!isset($_SESSION["user"])) {
   <?php require 'script.php'?>
   <?php if (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Admin'): ?>
     <?php require 'connection.php'?>
-    <h1>Admin dashboard</h1>
-    <a href="logout.php">Logout</a>
+
+    <!-- Top header bar with navigation -->
+     <h1>Admin Dashboard</h1><!-- page title-->
+     <nav class= "admin-nav"><!-- small navigation-->
+        <a class="admin-link" href="<?php echo view_url('home'); ?>">Home</a>
+        <a class="admin-link" href="<?php echo view_url('courses'); ?>">Edit Courses</a>
+        <a class="admin-link" href="<?php echo view_url('teachers'); ?>">Edit Teachers</a>
+        <a class="admin-link logout" href="logout.php">Logout</a>
+  </nav>
+  </header>
+
+  <?php if ($view === 'home'): ?><!-- HOME view (landing page with two buttons courses and teachers) -->
+      <main class="admin-home">
+        <a class="home-card" href="<?php echo view_url('courses'); ?>">
+          <div class="home-icon">📚</div>
+          <div class="home-title">Edit Courses</div>
+          <div class="home-sub">Add new course or update existing ones</div>
+        </a>
+        <a class="home-card" href="<?php echo view_url('teachers'); ?>">
+          <div class="home-icon">👩‍🏫</div>
+          <div class="home-title">Edit Teachers</div>
+          <div class="home-sub">Add new teacher or update profiles</div>
+        </a>
+      </main>
+
+    <?php elseif ($view === 'courses'): ?>
+    <!-- <a href="logout.php">Logout</a> -->
     <div class='container' id='course_list'>
       <h3>Courses</h3>
       <table>
@@ -133,6 +168,8 @@ if (!isset($_SESSION["user"])) {
         <input type="submit" class="btn" value="Create Course" name="CreateCourse">
       </form>
     </div>
+
+  <?php elseif ($view === 'teachers'): ?><!-- TEACHERS view -->
     <div class='container' id='teacher_list'>
       <h3>Teachers</h3>
       <table>
@@ -199,6 +236,9 @@ if (!isset($_SESSION["user"])) {
         <input type="submit" class="btn" value="Create Teacher" name="CreateTeacher">
       </form>
     </div>
+
+    <?php endif; ?><!-- end view switching -->
+
   <?php elseif (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Parent'):?>
     <h2>Parent dashboard</h2>
     <a href="logout.php">Logout</a>
