@@ -34,14 +34,16 @@ function view_url($v) {
     <?php require 'connection.php'?>
 
     <!-- Top header bar with navigation -->
-     <h1>Admin Dashboard</h1><!-- page title-->
-     <nav class= "admin-nav"><!-- small navigation-->
-        <a class="admin-link" href="<?php echo view_url('home'); ?>">Home</a>
-        <a class="admin-link" href="<?php echo view_url('courses'); ?>">Edit Courses</a>
-        <a class="admin-link" href="<?php echo view_url('teachers'); ?>">Edit Teachers</a>
+     <header class="admin-header">
+     <h1 class="admin-title">Admin Dashboard</h1><!-- page title-->
+     <nav class="admin-nav">
+      <!-- add "active" class if current $view matches -->
+        <a class="admin-link <?php echo ($view==='home')?'active':''; ?>" href="<?php echo view_url('home'); ?>">Home</a>
+        <a class="admin-link <?php echo ($view==='courses')?'active':''; ?>" href="<?php echo view_url('courses'); ?>">Edit Courses</a>
+        <a class="admin-link <?php echo ($view==='teachers')?'active':''; ?>" href="<?php echo view_url('teachers'); ?>">Edit Teachers</a>
         <a class="admin-link logout" href="logout.php">Logout</a>
-  </nav>
-  </header>
+      </nav>
+    </header>
 
   <?php if ($view === 'home'): ?><!-- HOME view (landing page with two buttons courses and teachers) -->
       <main class="admin-home">
