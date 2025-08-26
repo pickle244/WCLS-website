@@ -184,9 +184,7 @@
 
     }
   }
-?>
 
-<?php 
   // if create course button is clicked
   if (isset($_POST['CreateCourse'])) {
     // store course info
@@ -252,9 +250,7 @@
       echo "A course with this course code already exists";
     }
   }
-?>
-
-<?php
+  
   if (isset($_POST['CreateTeacher'])) {
     // store teacher info
     $user_id = $_POST['user_id'];
