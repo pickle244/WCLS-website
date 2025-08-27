@@ -286,3 +286,72 @@ select:focus{
     padding-right: 16px;
   }
 }
+
+
+/* =========================================================
+   Parent Dashboard - Fill Info form (scoped styles)
+   These rules ONLY affect elements inside .parent-fill.
+   Purpose: align icon, input text, and label on one baseline.
+   ========================================================= */
+
+.parent-fill {
+  /* Baseline for icon & label; tweak here if you want slightly up/down */
+  --fill-baseline: 1.55rem;
+  /* Label position when it floats above the underline */
+  --fill-lift: -0.35rem;
+}
+
+.parent-fill .input-group {
+  position: relative;
+  margin: 18px 0;
+}
+
+/* Left icon column */
+.parent-fill .input-group .icon {
+  position: absolute;
+  left: 0;
+  top: var(--fill-baseline);         /* share the same baseline with the label */
+  transform: translateY(-50%);
+  width: 22px;
+  text-align: center;
+  color: #8b0000;
+  font-size: 0.95rem;
+  pointer-events: none;              /* clicks go to the input */
+  line-height: 1;
+}
+
+/* Inputs/selects: leave space for the icon and set a steady height */
+.parent-fill .input-group .with-icon {
+  /* top | right | bottom | left  */
+  padding: 0.90rem 0.5rem 0.55rem 2.2rem !important;
+}
+
+/* Base label position: sit on the same baseline as the input text */
+.parent-fill .input-group .with-icon ~ label {
+  position: absolute;
+  left: 2.2rem;                      /* start after icon column */
+  top: var(--fill-baseline);         /* same baseline as icon */
+  transform: translateY(-50%);
+  background: #fff;                  /* avoid the underline crossing label text */
+  padding: 0 6px;
+  line-height: 1;
+}
+
+/* Float label when input has value or is focused */
+.parent-fill .input-group .with-icon:focus ~ label,
+.parent-fill .input-group .with-icon:not(:placeholder-shown) ~ label {
+  top: var(--fill-lift);
+  font-size: 0.90rem;
+  color: hsl(327, 90%, 28%);
+}
+
+/* Select does not support :placeholder-shown → use :valid instead */
+.parent-fill .input-group select.with-icon {
+  height: 2.6rem;                    /* visual parity with text inputs */
+}
+.parent-fill .input-group select.with-icon:focus ~ label,
+.parent-fill .input-group select.with-icon:valid ~ label {
+  top: var(--fill-lift);
+  font-size: 0.90rem;
+  color: hsl(327, 90%, 28%);
+}

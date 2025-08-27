@@ -157,7 +157,7 @@
   }
 
   if (isset($_POST["SignIn"])) {
-    $role = $_POST["role"];
+    // $role = $_POST["role"];
     $email = $_POST["email"];
     $password = $_POST["password"];
 
@@ -172,9 +172,13 @@
       if (password_verify($password, $user["password"])) {
         // start session to indicate user is logged in
         session_start();
-        $_SESSION["user"] = $user["id"];
-        $_SESSION["account_type"] = $user["account_type"];
-        header("Location: index.php");
+        $_SESSION["user"] = $user["id"];  
+        $_SESSION["user_id"]     = $user["id"];  // DB queries        
+        $_SESSION["account_type"] = $user["account_type"]; 
+        if ($_SESSION["account_type"] === "parent") {
+          header("Location: parent_dashboard.php");
+        }else{
+        header("Location: index.php");}
         die();
       } else {
         echo "<div class='alert danger'>Password does not match</div>";

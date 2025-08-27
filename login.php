@@ -1,8 +1,13 @@
 <?php
 session_start();
-// if user is already logged in, redirect them to the dashboard
+
 if (isset($_SESSION["user"])) {
-  header("Location: index.php");
+  if (($_SESSION['account_type'] ?? '') === 'Parent') {
+    header("Location: parent_dashboard.php");
+  } else {
+    header("Location: index.php");
+  }
+  exit();
 }
 ?>
 <!DOCTYPE html>

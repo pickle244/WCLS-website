@@ -1,12 +1,14 @@
 <?php
+
 session_start();
-// if user is not logged in, redirect them to sign in page
-if (!isset($_SESSION["user"])) {
-  header("Location: login.php");
-} else {
-  // comment out these code because it caused unexpected word "3 parent" after login.
-  // echo $_SESSION['user'];
-  // echo $_SESSION['account_type'];
+if (($_SESSION['account_type'] ?? '') === 'Parent') {
+  header("Location: parent_dashboard.php");
+  exit;
+}
+
+if (isset($_SESSION["user"]) && empty($_SESSION['account_type'])) {
+  header("Location: login.php"); // or logout.php
+  exit;
 }
 
 // mini router using query string like ?view=home / ?view=courses ?view=teachers
@@ -16,7 +18,6 @@ function view_url($v) {
   $base = strtok($_SERVER['REQUEST_URI'], '?');
   return htmlspecialchars($base. '?view='.$v, ENT_QUOTES, 'UTF-8');
 }
-
 
 ?>
 <!DOCTYPE html>
@@ -241,9 +242,7 @@ function view_url($v) {
 
     <?php endif; ?><!-- end view switching -->
 
-  <?php elseif (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Parent'):?>
-    <h2>Parent dashboard</h2>
-    <a href="logout.php">Logout</a>
-  <?php endif;?>
+    <?php endif; ?><!-- end admin gate -->
+
 </body>
 </html>
