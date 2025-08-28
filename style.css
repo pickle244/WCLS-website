@@ -115,7 +115,7 @@ input:focus~label,input:not(:placeholder-shown)~label{
     height: 56px;               
     justify-content: center;     /* 居中内容 */
     align-items: center;         /* 居中内容 */
-    padding: 0;                  /* 去掉不对称 padding */
+    padding: 0;                  
 
 
 }
@@ -202,30 +202,34 @@ select:focus{
 .alert.danger{  background:#ffecec; border:1px solid #f5b7b7; color:#7d1a1a; }
 .alert.info{    background:#eef5ff; border:1px solid #bdd1ff; color:#1a3a7d; }
 
-/* Top header with quick links */
-.admin-header, .parent-header {
+
+/* =========================================================
+   Unified Dashboard Styles (admin / parent / teacher)
+   ========================================================= */
+
+/* Header */
+.admin-header, .parent-header, .teacher-header {
   max-width: 960px;
-  padding-left: 24px;
-  padding-right: 24px;
-  margin: 16px auto 8px;
-  margin-top: 28px;   
-  gap: 12px; 
+  margin: 28px auto 8px;
   padding: 0 16px;
+  gap: 12px;
   display:flex;
   align-items:center;
-  justify-content: center;   /* center title + nav horizontally */
-  flex-direction: column;    /* stack title above nav links */
-  text-align: center;        /* center text inside */
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+}
+.admin-title, .parent-title, .teacher-title { margin: 0 0 .25rem; }
+
+/* Nav */
+.admin-nav, .parent-nav, .teacher-nav {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:12px;
 }
 
-.admin-nav, .parent-nav { 
-    flex-wrap: wrap;
-    justify-content: center;
-    display:flex; 
-    gap:12px; 
-}
-
-.admin-link, .parent-link {
+.admin-link, .parent-link, .teacher-link {
   display:inline-block;
   padding:8px 12px;
   border-radius:10px;
@@ -235,26 +239,26 @@ select:focus{
   box-shadow:0 2px 8px rgba(0,0,0,.12);
 }
 
-.admin-link.active, .parent-link.active {
+.admin-link:hover, .parent-link:hover, .teacher-link:hover { opacity:.9; }
+.admin-link.active, .parent-link.active, .teacher-link.active {
   background:#111;
   color:#fff;
-} 
-
-.admin-link:hover, .parent-link:hover{ opacity:.9; }
-
-/* Home view with two large cards */
-.admin-home, .parent-home{
-    justify-content: center;   /* center the grid within the page */
-    text-align: center;        /* align inner text of each card */
-    max-width: 960px;
-    padding-left: 24px;    
-    padding-right: 24px;
-    margin: 32px auto;
-    padding: 0 16px;
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap:20px;
 }
+.logout { color:#a00; }
+
+/* Home grid */
+.admin-home, .parent-home, .teacher-home {
+  max-width:960px;
+  margin:32px auto;
+  padding:0 16px;
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+  gap:20px;
+  justify-content:center;
+  text-align:center;
+}
+
+/* Home card */
 .home-card{
   display:block;
   background:#fff;
@@ -265,36 +269,52 @@ select:focus{
   color:inherit;
   transition: transform .12s ease, box-shadow .12s ease;
 }
+
 .home-card:hover{ transform: translateY(-2px); box-shadow:0 14px 34px rgba(0,0,0,.16); }
 .home-icon{ font-size:32px; }
 .home-title{ margin-top:8px; font-weight:700; font-size:18px; }
 .home-sub{ margin-top:4px; color:#666; font-size:13px; }
 
-/* On very large screens, keep content centered and not too wide */
+/* Utilities */
+.muted { opacity:.75; font-size:.9em; }
+.row-between { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
+.card { background:#fff; border:1px solid #eee; border-radius:.75rem; padding:1rem; margin:1rem 0; }
+.table-wrap { overflow:auto; }
+.table { width:100%; border-collapse:collapse; }
+.table th, .table td { border-top:1px solid #eee; padding:.6rem .5rem; text-align:left; }
+.tag { display:inline-block; font-size:.75rem; padding:.15rem .4rem; border:1px solid #ddd; border-radius:.4rem; margin-left:.25rem; }
+textarea.comment { width:100%; min-height:64px; resize:vertical; }
+input.grade { width:110px; }
+
+/* Responsive adjustments */
 @media (min-width: 1400px){
-  .admin-header,
-  .admin-home{
-    max-width: 1040px;   /* prevent looking too stretched on big monitors */
+  .admin-header, .parent-header, .teacher-header,
+  .admin-home, .parent-home, .teacher-home {
+    max-width: 1040px;
+  }
+}
+@media (max-width: 640px){
+  .admin-header, .parent-header, .teacher-header,
+  .admin-home, .parent-home, .teacher-home {
+    padding-left:16px;
+    padding-right:16px;
   }
 }
 
-/* On small screens, keep gutters sensible */
-@media (max-width: 640px){
-  .admin-header,
-  .admin-home{
-    padding-left: 16px;
-    padding-right: 16px;
+/* Print clean-up */
+@media print {
+  .admin-header, .parent-header, .teacher-header,
+  nav, .actions, .btn, .alert {
+    display:none !important;
   }
+  body { background:#fff; }
+  .card { border:none; box-shadow:none; padding:0; margin:0; }
 }
 
 details {
-  font:
-    16px "Open Sans",
-    Calibri,
-    sans-serif;
+  font:16px "Open Sans", Calibri, sans-serif;
   width: 620px;
 }
-
 details > summary {
   padding: 2px 6px;
   width: 15em;
@@ -303,15 +323,6 @@ details > summary {
   box-shadow: 3px 3px 4px black;
   cursor: pointer;
 }
-
-/* details > p {
-  border-radius: 0 0 10px 10px;
-  background-color: #dddddd;
-  padding: 2px 6px;
-  margin: 0;
-  box-shadow: 3px 3px 4px black;
-} */
-
 details:open > summary {
   background-color: #ccccff;
 }
