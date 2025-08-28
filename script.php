@@ -174,7 +174,14 @@
         session_start();
         $_SESSION["user"] = $user["id"];
         $_SESSION["account_type"] = $user["account_type"];
-        header("Location: index.php");
+        if ($_SESSION['account_type'] == 'Admin') {
+          header("Location: index.php");
+        } elseif ($_SESSION['account_type'] == 'Parent') {
+          header("Location: parent_dashboard.php");
+        } elseif($_SESSION['account_type'] == 'Teacher') {
+          header("Location: teacher_dashboard.php");
+        }
+        
         die();
       } else {
         echo "<div class='alert danger'>Password does not match</div>";

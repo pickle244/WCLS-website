@@ -1,5 +1,6 @@
 <?php
 session_start();
+require 'connection.php';
 // if user is not logged in, redirect them to sign in page
 if (!isset($_SESSION["user"])) {
   header("Location: login.php");

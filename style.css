@@ -203,7 +203,7 @@ select:focus{
 .alert.info{    background:#eef5ff; border:1px solid #bdd1ff; color:#1a3a7d; }
 
 /* Top header with quick links */
-.admin-header{
+.admin-header, .parent-header {
   max-width: 960px;
   padding-left: 24px;
   padding-right: 24px;
@@ -218,14 +218,14 @@ select:focus{
   text-align: center;        /* center text inside */
 }
 
-.admin-nav{ 
+.admin-nav, .parent-nav { 
     flex-wrap: wrap;
     justify-content: center;
     display:flex; 
     gap:12px; 
 }
 
-.admin-link{
+.admin-link, .parent-link {
   display:inline-block;
   padding:8px 12px;
   border-radius:10px;
@@ -235,15 +235,15 @@ select:focus{
   box-shadow:0 2px 8px rgba(0,0,0,.12);
 }
 
-.admin-link.active {
+.admin-link.active, .parent-link.active {
   background:#111;
   color:#fff;
 } 
 
-.admin-link:hover{ opacity:.9; }
+.admin-link:hover, .parent-link:hover{ opacity:.9; }
 
 /* Home view with two large cards */
-.admin-home{
+.admin-home, .parent-home{
     justify-content: center;   /* center the grid within the page */
     text-align: center;        /* align inner text of each card */
     max-width: 960px;
@@ -285,4 +285,33 @@ select:focus{
     padding-left: 16px;
     padding-right: 16px;
   }
+}
+
+details {
+  font:
+    16px "Open Sans",
+    Calibri,
+    sans-serif;
+  width: 620px;
+}
+
+details > summary {
+  padding: 2px 6px;
+  width: 15em;
+  background-color: #dddddd;
+  border: none;
+  box-shadow: 3px 3px 4px black;
+  cursor: pointer;
+}
+
+/* details > p {
+  border-radius: 0 0 10px 10px;
+  background-color: #dddddd;
+  padding: 2px 6px;
+  margin: 0;
+  box-shadow: 3px 3px 4px black;
+} */
+
+details:open > summary {
+  background-color: #ccccff;
 }
