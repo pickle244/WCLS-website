@@ -292,8 +292,7 @@
             $user_id, 
             $image,
             $bio,
-            $title
-          );
+            $title);
 
           if (mysqli_stmt_execute($stmt)) {
                 echo "Teacher created successfully!";
@@ -310,6 +309,55 @@
       }
     } else {
       echo "User with specified user_id is not a teacher";
+    }
+  }
+
+  if (isset($_POST['CreateFamily'])) {
+    $user_id = $_SESSION['user'];
+    $relationship = $_POST['relationship'];
+    $mobile_number = $_POST['mobile_number'];
+    $home_address = $_POST['home_address'];
+    $home_city = $_POST['home_city'];
+    $home_state = $_POST['home_state'];
+    $home_zip = $_POST['home_zip'];
+    $emergency_contact_name = $_POST['emergency_contact_name'];
+    $emergency_contact_number = $_POST['emergency_contact_number'];
+
+    require_once 'connection.php';
+
+    $query = "INSERT INTO families (
+      user_id,
+      relationship,
+      mobile_number,
+      home_address,
+      home_city,
+      home_state,
+      home_zip,
+      emergency_contact_name,
+      emergency_contact_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    $stmt = mysqli_stmt_init($conn);
+    $prepStmt = mysqli_stmt_prepare($stmt, $query);
+    if ($prepStmt) {
+      mysqli_stmt_bind_param($stmt,
+        'sssssssss',
+        $user_id,
+        $relationship,
+        $mobile_number,
+        $home_address,
+        $home_city,
+        $home_state,
+        $home_zip,
+        $emergency_contact_name,
+        $emergency_contact_number);
+
+      if (mysqli_stmt_execute($stmt)) {
+        echo "Family created";
+      } else {
+        echo "Execute failed: " . mysqli_stmt_error($stmt);
+      }
+    } else {
+      echo "Prepare failed: " . mysqli_error($conn);
     }
   }
 ?>

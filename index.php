@@ -241,10 +241,9 @@ function view_url($v) {
     </div>
 
     <?php endif; ?><!-- end view switching -->
-
-  <?php elseif (isset($_SESSION['account_type']) && $_SESSION['account_type'] === 'Parent'):?>
-    <h2>Parent dashboard</h2>
-    <a href="logout.php">Logout</a>
+  <?php else:;?>
+  <h1>You do not have access to view this page</h1>
+  <a href='logout.php'>Exit</a>
   <?php endif;?>
 </body>
 </html>

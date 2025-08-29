@@ -1,6 +1,7 @@
 <?php
 session_start();
 require 'connection.php';
+require 'script.php';
 
 // mini router using query string like ?view=home / ?view=courses ?view=teachers
 $view = isset($_GET['view']) ? $_GET['view']: 'home';
@@ -28,6 +29,7 @@ function view_url($v) {
     <!-- add "active" class if current $view matches -->
       <a class="parent-link <?php echo ($view==='home')?'active':''; ?>" href="<?php echo view_url('home'); ?>">Home</a>
       <a class="parent-link <?php echo ($view==='courses')?'active':''; ?>" href="<?php echo view_url('courses'); ?>">Courses</a>
+      <a class="parent-link <?php echo ($view==='family')?'active':''; ?>" href="<?php echo view_url('family'); ?>">Family</a>
       <a class="parent-link logout" href="logout.php">Logout</a>
     </nav>
   </header>
@@ -67,6 +69,53 @@ function view_url($v) {
           }
         }
       ?>
+    </div>
+  <?php elseif ($view == 'family'): ?>
+    <div class="container" id='create_family'>
+      <h1 class="form-title">Create Family</h1>
+      <form method="post" action="parent_dashboard.php">
+        <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="text" name="relationship" id="relationship" required>
+            <label for="relationship">Relationship</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="text" name="mobile_number" id="mobile_number" required>
+            <label for="mobile_number">Mobile Number</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-envelope"></i>
+            <input type="text" name="home_address" id="home_address" required>
+            <label for="home_address">Home Address</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="text" name="home_city" id="home_city" required>
+            <label for="home_city">Home City</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="text" name="home_state" id="home_state" required>
+            <label for="home_state">Home State</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="text" name="home_zip" id="home_zip" required>
+            <label for="home_zip">Zipcode</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="text" name="emergency_contact_name" id="emergency_contact_name" required>
+            <label for="emergency_contact_name">Emergency Contact Name</label>
+        </div>
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="text" name="emergency_contact_number" id="emergency_contact_number" required>
+            <label for="emergency_contact_number">Emergency Contact Phone</label>
+        </div>
+        <input type="submit" class="btn" value="Create Family" name="CreateFamily">
+      </form>
     </div>
   <?php endif;?>
 </body>
