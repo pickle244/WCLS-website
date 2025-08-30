@@ -45,7 +45,7 @@ if ($user_id > 0) {
   $stm->close();
 }
 
-// Added final_grade, final_comment, final_updated, final_updated_by in enrollments table in database
+// Added final_grade, final_comment, final_updated in enrollments table in database
 // POST: Save grades/comments 
 // Flow: CSRF -> course ownership -> enrollment gate -> batch update -> PRG
 $error = '';
@@ -107,17 +107,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
   $ok=0; $tot=count($rows);
   if (empty($error)) {
     $upd = $conn->prepare(
-      "UPDATE enrollments
-         SET final_grade = ?,
-             final_comment = ?,
-             final_updated = NOW(),
-             final_updated_by = ?
-       WHERE id = ?"
-    );
+    "UPDATE enrollments
+      SET final_grade = ?,
+          final_comment = ?,
+          final_updated = NOW()
+    WHERE id = ?"
+);
     foreach ($rows as $eid => [$g, $c]) {
       $eid_i = (int)$eid;
-      $tid_i = (int)$teacher_id; // who updated
-      $upd->bind_param('ssii', $g, $c, $tid_i, $eid_i);
+      $upd->bind_param('ssii', $g, $c, $eid_i);
       if ($upd->execute()) $ok++;
     }
     $upd->close();
@@ -133,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
 }
 
 // ---- Data holders for views ----
-$flash=''; $error='';
+$flash=''; 
 $courses=[]; $course=null; $roster=[];
 
 // ---- Preload data by view (READ-ONLY SQL) ----
@@ -176,19 +174,22 @@ elseif (($view === 'class' || $view === 'print')) {
     if (!$error && $course) {
       // Join through families->users to get parent email + emergency contact fields
       $sql = "SELECT
-                s.id AS student_id,
-                s.first_name, s.last_name, s.DOB,
-                f.id AS family_id,
-                u.email AS parent_email,
-                f.emergency_contact_name,
-                f.emergency_contact_number,
-                e.id AS enrollment_id
-              FROM enrollments e
-              JOIN students   s ON s.id = e.student_id
-              LEFT JOIN families f ON f.id = s.family_id
-              LEFT JOIN users    u ON u.id = f.user_id
-              WHERE e.course_id = ?
-              ORDER BY s.last_name ASC, s.first_name ASC";
+          s.id AS student_id,
+          s.first_name, s.last_name, s.DOB,
+          f.id AS family_id,
+          u.email AS parent_email,
+          f.emergency_contact_name,
+          f.emergency_contact_number,
+          e.id AS enrollment_id,
+          e.final_grade,
+          e.final_comment,
+          e.final_updated
+        FROM enrollments e
+        JOIN students   s ON s.id = e.student_id
+        LEFT JOIN families f ON f.id = s.family_id
+        LEFT JOIN users    u ON u.id = f.user_id
+        WHERE e.course_id = ?
+        ORDER BY s.last_name ASC, s.first_name ASC";
       $stm = $conn->prepare($sql);
       $stm->bind_param('i', $course_id);
       if ($stm->execute()) {
