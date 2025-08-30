@@ -28,7 +28,7 @@ function view_url(string $v, array $extra = []): string {
 }
 
 // ---- Feature flag: saving grades/comments is OFF for now ----
-$enable_grading_write = false;
+$enable_grading_write = true;
 
 // ---- CSRF token (even if saving is off, keep the pattern ready) ----
 if (empty($_SESSION['csrf_token'])) {
@@ -48,6 +48,93 @@ if ($user_id > 0) {
   }
   $stm->close();
 }
+
+// ---- Handle "Save All" for grades/comments (POST) ----
+// CSRF check -> course ownership check -> enrollment-level gate -> batch update -> PRG redirect
+if ($enable_grading_write && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
+
+  $course_id   = (int)($_GET['course_id'] ?? 0);   // action URL already carries ?course_id=...
+  $posted_csrf = $_POST['csrf'] ?? '';
+
+  // 1) CSRF & basic guards
+  if (!hash_equals($_SESSION['csrf_token'] ?? '', $posted_csrf)) {
+    $error = 'Security token mismatch. Please retry.';
+  } elseif ($course_id <= 0) {
+    $error = 'Missing or invalid course_id.';
+  } elseif ($teacher_id === null) {
+    $error = 'Your account is not linked to a teacher profile.';
+  } else {
+    // 2) Course ownership: ensure the course belongs to current teacher
+    $own = $conn->prepare("SELECT id FROM courses WHERE id=? AND teacher_id=? LIMIT 1");
+    $own->bind_param('ii', $course_id, $teacher_id);
+    $own_ok = $own->execute() && $own->get_result()->fetch_row();
+    $own->close();
+    if (!$own_ok) $error = 'You are not authorized to modify this course.';
+  }
+
+  // 3) Normalize input arrays
+  $ids    = $_POST['enrollment_id'] ?? [];
+  $grades = $_POST['final_grade']   ?? [];
+  $notes  = $_POST['final_comment'] ?? [];
+
+  $N = min(count($ids), count($grades), count($notes));
+  $rows = []; // enrollment_id => [grade, comment]
+  for ($i=0; $i<$N; $i++) {
+    $eid = (int)$ids[$i];
+    if ($eid <= 0) continue;
+    $g = trim((string)$grades[$i]);
+    $c = trim((string)$notes[$i]);
+    if (mb_strlen($g) > 16)   $g = mb_substr($g, 0, 16);
+    if (mb_strlen($c) > 2000) $c = mb_substr($c, 0, 2000);
+    $rows[$eid] = [$g, $c]; // de-duplicate by id
+  }
+  if (empty($error) && empty($rows)) $error = 'Nothing to save.';
+
+  // 4) Enrollment-level gate: only allow enrollments of this course
+  if (empty($error)) {
+    $allowed = [];
+    $q = $conn->prepare("SELECT e.id FROM enrollments e WHERE e.course_id = ?");
+    $q->bind_param('i', $course_id);
+    if ($q->execute()) {
+      $rs = $q->get_result();
+      while ($r = $rs->fetch_row()) $allowed[(int)$r[0]] = true;
+    }
+    $q->close();
+    foreach (array_keys($rows) as $eid) {
+      if (empty($allowed[$eid])) unset($rows[$eid]);
+    }
+    if (!$rows) $error = 'No valid enrollments to update.';
+  }
+
+  // 5) Batch update
+  $ok=0; $tot=count($rows);
+  if (empty($error)) {
+    $upd = $conn->prepare(
+      "UPDATE enrollments
+         SET final_grade = ?,
+             final_comment = ?,
+             final_updated = NOW(),
+             final_updated_by = ?
+       WHERE id = ?"
+    );
+    foreach ($rows as $eid => [$g, $c]) {
+      $eid_i = (int)$eid;
+      $tid_i = (int)$teacher_id; // who updated
+      $upd->bind_param('ssii', $g, $c, $tid_i, $eid_i);
+      if ($upd->execute()) $ok++;
+    }
+    $upd->close();
+
+    // Flash + PRG to avoid resubmission on refresh
+    $_SESSION['registration_status'] = ($ok === $tot)
+      ? "Saved $ok/$tot records."
+      : "Partially saved: $ok/$tot records.";
+    header('Location: '. view_url('class', ['course_id'=>$course_id, 'tab'=>'grades']));
+    exit;
+  }
+  // If we fell through with $error, we continue to render the page with the error banner.
+}
+
 
 // ---- Data holders for views ----
 $flash=''; $error='';
