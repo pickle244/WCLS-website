@@ -56,10 +56,10 @@ $courses=[]; $course=null; $roster=[];
 // ---- Preload data by view (READ-ONLY SQL) ----
 if ($view === 'courses' && $teacher_id !== null) {
   // List all classes taught by this teacher.
-  $sql = "SELECT c.id, c.name, c.term, c.year, c.room
+  $sql = "SELECT c.id, c.course_name AS name, c.term, c.year, c.room_number AS room
           FROM courses c
           WHERE c.teacher_id = ?
-          ORDER BY c.year DESC, c.term ASC, c.name ASC";
+          ORDER BY c.year DESC, c.term ASC, c.course_name ASC";
   $stm = $conn->prepare($sql);
   $stm->bind_param('i', $teacher_id);
   if ($stm->execute()) {
@@ -77,7 +77,7 @@ elseif (($view === 'class' || $view === 'print')) {
     $error = 'Your account is not linked to a teacher profile.';
   } else {
     // Ownership check
-    $chk = $conn->prepare("SELECT id, name, term, year, room, teacher_id FROM courses WHERE id = ? LIMIT 1");
+    $chk = $conn->prepare("SELECT id, course_name AS name, term, year, room_number AS room, teacher_id FROM courses WHERE id = ? LIMIT 1");
     $chk->bind_param('i', $course_id);
     if ($chk->execute()) $course = $chk->get_result()->fetch_assoc();
     $chk->close();
@@ -214,22 +214,6 @@ elseif (($view === 'class' || $view === 'print')) {
       </div>
     </div>
 
-    <?php elseif ($view === 'class' && $course && !$error): ?>
-  <main class="content">
-    <div class="card">
-      <div class="row-between">
-        <div>
-          <strong><?= h($course['name']) ?></strong>
-          <div class="muted">Term: <?= h($course['term']) ?> · Year: <?= h($course['year']) ?> · Room: <?= h($course['room']) ?></div>
-        </div>
-        <div class="actions">
-          <a class="btn ghost" href="<?= view_url('courses') ?>">Back</a>
-          <a class="btn <?= $tab==='roster'?'primary':'ghost' ?>" href="<?= view_url('class',['course_id'=>(int)$course['id'],'tab'=>'roster']) ?>">Roster</a>
-          <a class="btn <?= $tab==='grades'?'primary':'ghost' ?>" href="<?= view_url('class',['course_id'=>(int)$course['id'],'tab'=>'grades']) ?>">Grades</a>
-          <a class="btn primary" href="<?= view_url('print',['course_id'=>(int)$course['id']]) ?>" target="_blank">Print</a>
-        </div>
-      </div>
-    </div>
 
     <?php if ($tab === 'roster'): ?>
       <div class="table-wrap card">
@@ -336,10 +320,3 @@ elseif (($view === 'class' || $view === 'print')) {
 
 </body>
 </html>
-
-
-
-
-
-
-

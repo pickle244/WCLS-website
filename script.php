@@ -173,6 +173,7 @@
         // start session to indicate user is logged in
         session_start();
         $_SESSION["user"] = $user["id"];
+        $_SESSION['user_id'] = $user['id']; // new canonical
         $_SESSION["account_type"] = $user["account_type"];
         if ($_SESSION['account_type'] == 'Admin') {
           header("Location: index.php");
