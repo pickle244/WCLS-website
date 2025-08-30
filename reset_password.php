@@ -5,13 +5,11 @@
 session_start();
 require 'connection.php';
 
-/* ------------------------------
- * Variable declarations (state for rendering + processing)
- * ------------------------------
+/* Variable declarations (state for rendering + processing)
  * $invalid        : if true, we do NOT show the reset form (invalid/missing/expired token)
  * $emailForReset  : email associated with the valid token (fetched from password_reset)
  * $errorMsgs      : validation errors for the submitted passwords
- * $statusMsg      : (unused for now) placeholder for any general status
+ * $statusMsg      : placeholder for any general status
  */
 $invalid = false;        
 $emailForReset = '';     
@@ -22,14 +20,13 @@ $statusMsg='';
  * 1) Validate token from URL (existence + expiry)
  *    - If token missing or not found => mark as invalid
  *    - If token expired => delete that token row and mark as invalid
- *    NOTE: We only read GET 'token' here; do NOT process POST if invalid.
  * ------------------------------ */
 $token = $_GET['token'] ?? '';
 if ($token === '') {
     // No token in URL => cannot proceed
     $invalid = true;
 } else {
-    // Look up token in password_reset table
+    //  look token in password_reset table
     $stmt = $conn->prepare("SELECT email, expires FROM password_reset WHERE token = ? LIMIT 1");
     $stmt->bind_param("s", $token);
     $stmt->execute();
@@ -55,8 +52,7 @@ if ($token === '') {
     }
 }
 
-/* ------------------------------
- * 2) Handle POST submit (only when token is valid)
+/*Handle POST submit (only when token is valid)
  *    - Validate password strength rules and match
  *    - If valid:
  *        a) Hash password
@@ -161,7 +157,6 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
     <?php endif; ?>
   </div>
 
-  <!-- Password eye toggle logic lives in script.js -->
   <script src="script.js"></script>
 </body>
 </html>
