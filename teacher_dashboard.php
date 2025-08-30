@@ -215,13 +215,15 @@ elseif (($view === 'class' || $view === 'print')) {
 
   <!-- Header / Nav -->
   <header class="teacher-header">
-    <h1 class="teacher-title">Teacher Dashboard</h1>
-    <nav class="teacher-nav">
-      <a class="teacher-link <?= $view==='home'    ?'active':'' ?>" href="<?= view_url('home') ?>">Home</a>
-      <a class="teacher-link <?= $view==='courses' ?'active':'' ?>" href="<?= view_url('courses') ?>">My classes</a>
-      <a class="teacher-link logout" href="logout.php">Logout</a>
-    </nav>
-  </header>
+
+  <h1 class="teacher-title">Teacher Dashboard</h1>
+  <nav class="teacher-nav">
+    <a class="teacher-link <?= $view==='home'    ?'active':'' ?>" href="<?= view_url('home') ?>">Home</a>
+    <a class="teacher-link <?= $view==='courses' ?'active':'' ?>" href="<?= view_url('courses') ?>">My classes</a>
+    <a class="teacher-link logout" href="logout.php">Logout</a>
+  </nav>
+</header>
+
 
   <!-- Global banners -->
   <?php if ($error): ?>
@@ -365,40 +367,53 @@ elseif (($view === 'class' || $view === 'print')) {
 
   <!-- PRINT -->
   <?php elseif ($view === 'print' && $course && !$error): ?>
-    <main class="content">
-      <h2 style="margin:.2rem 0;"><?= h($course['name']) ?> — Roster</h2>
-      <div class="muted" style="margin-bottom:.6rem;">Term: <?= h($course['term']) ?> · Year: <?= h($course['year']) ?> · Room: <?= h($course['room']) ?></div>
-      <div class="table-wrap card">
-        <table class="table">
-          <thead><tr>
+  <!-- Print-only brand header,visible in print -->
+  <div class="print-brand" aria-hidden="true">WCLS · 卫斯理中文学校</div>
+
+  <main class="content print-sheet">
+    <h2 style="margin:.2rem 0;"><?= h($course['name']) ?> — Roster</h2>
+
+    <div class="muted" style="margin-bottom:.6rem;">
+      Term: <?= h($course['term']) ?> · Year: <?= h($course['year']) ?> · Room: <?= h($course['room']) ?>
+    </div>
+
+    <div class="table-wrap card">
+      <table class="table">
+        <thead>
+          <tr>
             <th>#</th><th>Student</th><th>DOB</th>
             <th>Parent Email</th><th>Emergency Contact</th><th>Phone</th>
-          </tr></thead>
-          <tbody>
-            <?php $n=1; foreach ($roster as $r): ?>
-              <tr>
-                <td><?= $n++ ?></td>
-                <td><?= h($r['last_name'] . ', ' . $r['first_name']) ?></td>
-                <td><?= h($r['DOB']) ?></td>
-                <td><?= h($r['parent_email']) ?></td>
-                <td><?= h($r['emergency_contact_name']) ?></td>
-                <td><?= h($r['emergency_contact_number']) ?></td>
-              </tr>
-            <?php endforeach; ?>
-            <?php if (!$roster): ?>
-              <tr><td colspan="6" class="muted">No students enrolled.</td></tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-      <p class="muted">Tip: Use your browser’s print (Ctrl/Cmd + P).</p>
-    </main>
+          </tr>
+        </thead>
+        <tbody>
+          <?php $n=1; foreach ($roster as $r): ?>
+            <tr>
+              <td><?= $n++ ?></td>
+              <td><?= h($r['last_name'] . ', ' . $r['first_name']) ?></td>
+              <td><?= h($r['DOB']) ?></td>
+              <td><?= h($r['parent_email']) ?></td>
+              <td><?= h($r['emergency_contact_name']) ?></td>
+              <td><?= h($r['emergency_contact_number']) ?></td>
+            </tr>
+          <?php endforeach; ?>
+          <?php if (!$roster): ?>
+            <tr><td colspan="6" class="muted">No students enrolled.</td></tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </main>
 
-  <!-- Unknown view -->
-  <?php else: ?>
-    <main class="content">
-      <div class="card"><p>Unknown view.</p></div>
-    </main>
+
+  <script>
+  // Auto-open print dialog when the print view loads
+  (function () {
+    function triggerPrint() { setTimeout(function(){ window.print(); }, 0); }
+    if (document.readyState === 'complete') triggerPrint();
+    else window.addEventListener('load', triggerPrint);
+  })();
+</script>
+
   <?php endif; ?>
 
 </body>

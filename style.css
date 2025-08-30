@@ -301,14 +301,70 @@ input.grade { width:110px; }
   }
 }
 
-/* Print clean-up */
+/* =========================
+   Print view (roster sheet)
+   ========================= */
+
+/* Only show brand in print. */
+.print-brand { display: none; }
+
+/* Top-level print page margins  */
+@page { margin: 12mm; }
+
 @media print {
-  .admin-header, .parent-header, .teacher-header,
-  nav, .actions, .btn, .alert {
-    display:none !important;
+  /* Hide app chrome in print (teacher dashboard) */
+  .teacher-header,
+  .teacher-nav,
+  .actions,
+  .btn,
+  .alert {
+    display: none !important;
   }
-  body { background:#fff; }
-  .card { border:none; box-shadow:none; padding:0; margin:0; }
+
+
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Flatten cards for print */
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+
+  .table-wrap {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .table thead { display: table-header-group; } /* repeat header per page */
+  .table tr    { page-break-inside: avoid; }    /* avoid row split */
+
+  /* Brand at top-right, small size */
+  .print-brand {
+    display: block !important;
+    position: fixed;
+    top: 6mm;
+    right: 6mm;
+    left: auto;
+    text-align: right;
+    font-weight: 600;
+    font-size: 12pt;    /* smaller to match dashboard tone */
+    background: transparent;
+    padding: 0;
+    border: 0;
+    z-index: 9999;
+  }
+
+  /* Push printable content down to avoid overlap with brand */
+  .print-sheet {
+    margin-top: 18mm !important;
+  }
 }
 
 details {
