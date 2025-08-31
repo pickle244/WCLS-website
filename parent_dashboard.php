@@ -40,6 +40,11 @@ function view_url($v) {
         <div class="home-title">View Courses</div>
         <div class="home-sub">View the course catalog</div>
       </a>
+      <a class="home-card" href="<?php echo view_url('family'); ?>">
+        <div class="home-icon">📚</div>
+        <div class="home-title">View Family</div>
+        <div class="home-sub">View your family</div>
+      </a>
     </main>
   <?php elseif ($view == 'courses'): ?>
     <div class='container' id='course_list'>
