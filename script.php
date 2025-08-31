@@ -361,4 +361,38 @@
       echo "Prepare failed: " . mysqli_error($conn);
     }
   }
+
+  if (isset($_POST['CreateStudent'])) {
+    $family_id = $_POST['family_id'];
+    $first_name = $_POST['first_name'];
+    $last_name = $_POST['last_name'];
+    $DOB = $_POST['DOB'];
+
+    require_once 'connection.php';
+
+    $query = "INSERT INTO students (
+      family_id,
+      first_name,
+      last_name,
+      DOB) VALUES (?, ?, ?, ?)";
+
+    $stmt = mysqli_stmt_init($conn);
+    $prepStmt = mysqli_stmt_prepare($stmt, $query);
+    if ($prepStmt) {
+      mysqli_stmt_bind_param($stmt,
+        'isss',
+        $family_id,
+        $first_name,
+        $last_name,
+        $DOB);
+
+      if (mysqli_stmt_execute($stmt)) {
+        echo "Student created";
+      } else {
+        echo "Execute failed: " . mysqli_stmt_error($stmt);
+      }
+    } else {
+      echo "Prepare failed: " . mysqli_error($conn);
+    }
+  }
 ?>

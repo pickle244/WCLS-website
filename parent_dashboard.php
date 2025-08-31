@@ -71,52 +71,110 @@ function view_url($v) {
       ?>
     </div>
   <?php elseif ($view == 'family'): ?>
-    <div class="container" id='create_family'>
-      <h1 class="form-title">Create Family</h1>
-      <form method="post" action="parent_dashboard.php">
-        <div class="input-group">
-            <i class="fas fa-user"></i>
-            <input type="text" name="relationship" id="relationship" required>
-            <label for="relationship">Relationship</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-user"></i>
-            <input type="text" name="mobile_number" id="mobile_number" required>
-            <label for="mobile_number">Mobile Number</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-envelope"></i>
-            <input type="text" name="home_address" id="home_address" required>
-            <label for="home_address">Home Address</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-lock"></i>
-            <input type="text" name="home_city" id="home_city" required>
-            <label for="home_city">Home City</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-lock"></i>
-            <input type="text" name="home_state" id="home_state" required>
-            <label for="home_state">Home State</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-lock"></i>
-            <input type="text" name="home_zip" id="home_zip" required>
-            <label for="home_zip">Zipcode</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-lock"></i>
-            <input type="text" name="emergency_contact_name" id="emergency_contact_name" required>
-            <label for="emergency_contact_name">Emergency Contact Name</label>
-        </div>
-        <div class="input-group">
-            <i class="fas fa-lock"></i>
-            <input type="text" name="emergency_contact_number" id="emergency_contact_number" required>
-            <label for="emergency_contact_number">Emergency Contact Phone</label>
-        </div>
-        <input type="submit" class="btn" value="Create Family" name="CreateFamily">
-      </form>
-    </div>
+    <?php
+      $user_id = $_SESSION['user'];
+      $query = "SELECT * FROM families WHERE user_id = '$user_id'";
+      $families = $conn->query($query)->fetch_assoc();
+      if (!$families):
+    ?>
+      <div class="container" id='create_family'>
+        <h1 class="form-title">Create Family</h1>
+        <form method="post" action="parent_dashboard.php">
+          <div class="input-group">
+              <i class="fas fa-user"></i>
+              <input type="text" name="relationship" id="relationship" required>
+              <label for="relationship">Relationship</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-user"></i>
+              <input type="text" name="mobile_number" id="mobile_number" required>
+              <label for="mobile_number">Mobile Number</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-envelope"></i>
+              <input type="text" name="home_address" id="home_address" required>
+              <label for="home_address">Home Address</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="text" name="home_city" id="home_city" required>
+              <label for="home_city">Home City</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="text" name="home_state" id="home_state" required>
+              <label for="home_state">Home State</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="text" name="home_zip" id="home_zip" required>
+              <label for="home_zip">Zipcode</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="text" name="emergency_contact_name" id="emergency_contact_name" required>
+              <label for="emergency_contact_name">Emergency Contact Name</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="text" name="emergency_contact_number" id="emergency_contact_number" required>
+              <label for="emergency_contact_number">Emergency Contact Phone</label>
+          </div>
+          <input type="submit" class="btn" value="Create Family" name="CreateFamily">
+        </form>
+      </div>
+    <?php else: ?>
+      <div class='container' id='students_list'>
+        <h1>Students</h1>
+        <table>
+          <tr>
+            <th>Name</th>
+            <th>DOB</th>
+          </tr>
+          <?php
+            $family_id = $families['id'];
+            $query = "SELECT * FROM students WHERE family_id = '$family_id'";
+            $students = $conn->query($query);
+
+            if ($students) {
+              while ($row = $students->fetch_assoc()) {
+                echo
+                "<tr>
+                  <td>" . $row['first_name'] . " " . $row['last_name'] . "</td>
+                  <td>" . $row['DOB'] . "</td>
+                </tr>";
+              }
+            }
+          ?>
+        </table>
+      </div>
+      <div class='container' id='create_student'>
+        <h1 class="form-title">Create Student</h1>
+        <form method="post" action="parent_dashboard.php">
+          <div class="input-group">
+              <i class="fas fa-user"></i>
+              <input type="number" name="family_id" id="family_id" required>
+              <label for="family_id">Family ID</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-user"></i>
+              <input type="text" name="first_name" id="first_name" required>
+              <label for="first_name">First Name</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-envelope"></i>
+              <input type="text" name="last_name" id="last_name" required>
+              <label for="last_name">Last Name</label>
+          </div>
+          <div class="input-group">
+              <i class="fas fa-lock"></i>
+              <input type="text" name="DOB" id="DOB" required>
+              <label for="DOB">DOB</label>
+          </div>
+          <input type="submit" class="btn" value="Create Student" name="CreateStudent">
+        </form>
+      </div>
+    <?php endif;?>
   <?php endif;?>
 </body>
 </html>

@@ -174,7 +174,7 @@ function view_url($v) {
 
   <?php elseif ($view === 'teachers'): ?><!-- TEACHERS view -->
     <div class='container' id='teacher_list'>
-      <h3>Teachers</h3>
+      <h1>Teachers</h1>
       <table>
         <tr>
           <th>name</th>
@@ -202,7 +202,7 @@ function view_url($v) {
               $user = $conn->query($query)->fetch_assoc();
               echo
               "<tr>
-                <td>" . $user['first_name'] . $user['last_name']. "</td>
+                <td>" . $user['first_name'] . " " . $user['last_name']. "</td>
                 <td>" . $row['user_id'] . "</td>
                 <td>" . $row['title'] . "</td>
                 <td>" . $row['bio'] . "</td>
