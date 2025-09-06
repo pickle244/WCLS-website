@@ -395,4 +395,48 @@
       echo "Prepare failed: " . mysqli_error($conn);
     }
   }
+
+  if (isset($_POST['CopyCourses'])) {
+    $curr_year = date("Y");
+
+    require_once 'connection.php';
+
+    $query = "INSERT INTO courses (
+        program, 
+        course_code, 
+        course_name, 
+        course_price,
+        course_description, 
+        default_capacity,
+        year,
+        term,
+        room_number,
+        teacher_id)
+      SELECT
+        program, 
+        course_code, 
+        course_name, 
+        course_price,
+        course_description, 
+        default_capacity,
+        year + 1,
+        term,
+        room_number,
+        teacher_id
+      FROM courses WHERE year = '$curr_year'";
+    
+    $stmt = mysqli_stmt_init($conn);
+    $prepStmt = mysqli_stmt_prepare($stmt, $query);
+
+    if ($prepStmt) {
+      
+      if (mysqli_stmt_execute($stmt)) {
+        echo "Copied successfuly";
+      } else {
+        echo "Execute failed: " . mysqli_stmt_error($stmt);
+      }
+    } else {
+      echo "Prepare failed: " . mysqli_error($conn);
+    }
+  }
 ?>

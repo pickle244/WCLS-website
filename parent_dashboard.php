@@ -129,6 +129,49 @@ function view_url($v) {
         </form>
       </div>
     <?php else: ?>
+      <div class='container' id='family_info'>
+        <h1>Family Info</h1>
+        <table>
+          <tr>
+            <th>Relationship</th>
+            <th>Mobile Number</th>
+            <th>Home Address</th>
+            <th>Home City</th>
+            <th>Home State</th>
+            <th>Zipcode</th>
+            <th>Emergency Contact Name</th>
+            <th>Emergency Contact Phone</th>
+          </tr>
+          <?php
+            $user_id = $_SESSION['user'];
+            $query = "SELECT
+              relationship,
+              mobile_number,
+              home_address,
+              home_city,
+              home_state,
+              home_zip,
+              emergency_contact_name,
+              emergency_contact_number
+            FROM families WHERE user_id = '$user_id'";
+            $family = $conn->query($query)->fetch_assoc();
+
+            if ($family) {
+              echo
+              "<tr>
+                <td>" . $family['relationship'] . "</td>
+                <td>" . $family['mobile_number'] . "</td>
+                <td>" . $family['home_address'] . "</td>
+                <td>" . $family['home_city'] . "</td>
+                <td>" . $family['home_state'] . "</td>
+                <td>" . $family['home_zip'] . "</td>
+                <td>" . $family['emergency_contact_name'] . "</td>
+                <td>" . $family['emergency_contact_number'] . "</td>
+              </tr>";
+            }
+          ?>
+        </table>
+      </div>
       <div class='container' id='students_list'>
         <h1>Students</h1>
         <table>

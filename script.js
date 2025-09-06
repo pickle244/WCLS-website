@@ -25,3 +25,48 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
             }
         });
 });
+
+// document.querySelectorAll("#editableTable td").forEach(cell => {
+//   cell.addEventListener("click", () => {
+//     let currentText = cell.innerText;
+//     let input = document.createElement("input");
+//     input.value = currentText;
+//     cell.innerText = "";
+//     cell.appendChild(input);
+//     input.focus();
+
+//     input.addEventListener("blur", () => {
+//       cell.innerText = input.value;
+//     });
+
+//     input.addEventListener("keydown", (e) => {
+//       if (e.key === "Enter") {
+//         input.blur();
+//       }
+//     });
+//   });
+// });
+
+// For import Courses
+(function (){
+  var chooseBtn = document.getElementByUd('btn-import-choose');
+  var fileInput = document.getElementByUd('import-file');
+  var chosenOut = document.getElementByUd('import-chosen-file');
+
+  if(!chooseBtn || !fileInput || !chosenOut) return;
+
+  // click button -> trigger to choose the file
+  chooseBtn.addEventListener('click', function (){
+    fileInput.click();
+  });
+
+  // after choosing the file -> show the filename
+  fileInput.addEventListener('change', function(){
+    if(fileInput.files && fileInput.files.length >0) {
+      var f = fileInput.files[0];
+      chosenOut.textContent = 'Selected: ' + f.name;
+    } else {
+      chosenOut.textContent = '';
+    }
+  });
+})();

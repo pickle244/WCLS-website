@@ -18,6 +18,54 @@ function view_url($v) {
   return htmlspecialchars($base. '?view='.$v, ENT_QUOTES, 'UTF-8');
 }
 
+$import_preview_html = "";
+if (($_POST['action'] ?? '')=== 'preview_courses'){
+  if(!isset($_FILES['file']) || $_FILES['file']['error']!== UPLOAD_ERR_ok) {
+    $import_preview_html = '<div class="alert danger">Upload Failed.</div>';
+  } else {
+    $name = $_FILES['file']['name'];
+    $tmp = $_FILES['file']['tmp_name'];
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+    if($ext !=='csv'){
+      $import_preview_html = '<div class="alert danger">Preview supports CSV only.</div>';
+    } else {
+      $fh = fopen($tmp, 'r');
+      if (!$fh) {
+        $import_preview_html = '<div class="alert danger">Cannot open uploaded file.</div>';
+      } else {
+        $headers =fgetcsv($fh);
+        if(!$headers){
+          $import_preview_html = '<div class="alert danger">Empty CSV.</div>';
+        } else {
+          $rows = [];
+          for ($=0; $i<10 && ($r = fgetcsv($fh)) !== false; $i++ ) {
+            $row[] = $r;
+          } 
+          fclose($fh);
+
+          $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+
+          ob_start();
+
+          echo '<div class="alert info">Preview of ' . $e($name) . ' (showing up to 10 rows)</div>';
+          echo '<div class="table-wrap"><table class="table"><thead><tr>';
+          foreach ($headers as $h) echo '<th>' . $e($h) . '</th>';
+          echo '</tr></thead><tbody>';
+          foreach ($rows as $r) {
+            echo '<tr>';
+
+            for ($i=0; $i<count($headers); $i++) {
+              $val = $r[$i] ?? '';
+              echo '<td>' . $e($val) . '</td>'
+            }
+            echo
+        }
+      }
+    }
+  }
+}
+
 
 ?>
 <!DOCTYPE html>
@@ -63,8 +111,8 @@ function view_url($v) {
     <?php elseif ($view === 'courses'): ?>
     <!-- <a href="logout.php">Logout</a> -->
     <div class='container' id='course_list'>
-      <h3>Courses</h3>
-      <table>
+      <h3>Courses</h3> 
+      <table id="editableTable">
         <tr>
           <th>name</th>
           <th>code</th>
@@ -102,7 +150,7 @@ function view_url($v) {
                 <td>" . $row['course_description'] . "</td>
                 <td>" . $row['program'] . "</td>
                 <td>" . $row['term'] . "</td>
-                <td>" . $row['year'] . "</td>
+                <td>" . $row['year'] . "-" . $row['year'] + 1 . "</td>
                 <td>" . $teacher['first_name'] . $teacher['last_name']. "</td>
                 <td>" . $row['default_capacity'] . "</td>
                 <td>" . $row['room_number'] . "</td>
@@ -111,7 +159,33 @@ function view_url($v) {
           }
         ?>
       </table>
+      <form method="post" action="index.php">
+        <button type="submit" class="btn" value="Copy" name="CopyCourses">Copy</button>
+      </form>
     </div>
+
+      <!--Import from Excel/CSV -->
+      <div class="container" id="import_courses">
+        <h3>Import Courses</h3>
+        <form action="" method="post" enctype="multipart/form-data" id="import-form">
+          <input type="hidden" name="action" value="preview_courses">
+
+        <input type="file" id="import-file" accept=".csv, .slsx" hidden>
+        <button type="button" class="btn" id="btn-import-choose">
+          Choose CSV / Excel 
+        </button>
+
+        <div class="input-group">
+          <input type="submit" class="btn" value="Preview">
+        </div>
+
+        <div id="import-chosen-file"></div>
+        </form>
+
+        <?php if (!empty($import_preview_html)) echo $import_preview_html; ?>
+      </div>
+
+    
     <div class="container" id='create_course'>
       <h1 class="form-title">Create Course</h1>
       <form method="post" action="index.php">
