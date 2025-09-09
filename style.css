@@ -1,384 +1,209 @@
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:"poppins",sans-serif;
-}
+*{ margin:0; padding:0; box-sizing:border-box; font-family:"poppins",sans-serif; }
+
 body{
-    background-color: #8b0000;
-    background:linear-gradient(to right,#eba7a7,#fa6868);
+  background-color:#8b0000;
+  background:linear-gradient(to right,#eba7a7,#fa6868);
 }
+
+/* Simple container used on teacher list page */
 .container{
-    background:#fff;
-    width:450px;
-    padding:1.5rem;
-    margin:50px auto;
-    border-radius:10px;
-    box-shadow:0 20px 35px rgba(0,0,1,0.9);
+  background:#fff; width:450px; padding:1.5rem; margin:50px auto;
+  border-radius:10px; box-shadow:0 20px 35px rgba(0,0,1,0.9);
 }
-form{
-    margin:0 2rem;
-}
-.form-title{
-    font-size:1.5rem;
-    font-weight:bold;
-    text-align:center;
-    padding:1.3rem;
-    margin-bottom:0.4rem;
-}
+
+form{ margin:0 2rem; }
+.form-title{ font-size:1.5rem; font-weight:bold; text-align:center; padding:1.3rem; margin-bottom:0.4rem; }
+
+/* Inputs with underline look (legacy forms) */
 input{
-    color:inherit;
-    width:100%;
-    background-color:transparent;
-    border:none;
-    border-bottom:1px solid #757575;
-    padding-left:1.5rem;
-    font-size:15px;
+  color:inherit; width:100%; background:transparent; border:none; border-bottom:1px solid #757575;
+  padding-left:1.5rem; font-size:15px;
 }
-.input-group {
-    padding:1% 0;
-    position:relative;
-}
-.input-group i{
-    position:absolute;
-    color:black;
-}
-input:focus{
-    background-color: transparent;
-    outline:transparent;
-    border-bottom:2px solid hsl(327,90%,28%);
-}
-input::placeholder{
-    color:transparent;
-}
+.input-group{ padding:1% 0; position:relative; }
+.input-group i{ position:absolute; color:black; }
+input:focus{ background:transparent; outline:transparent; border-bottom:2px solid hsl(327,90%,28%); }
+input::placeholder{ color:transparent; }
+
+/* Floating labels on legacy forms */
 label{
-    color:#757575;
-    position:relative;
-    left:1.2em;
-    top:-1.3em;
-    cursor:auto;
-    transition:0.3s ease all;
+  color:#757575; position:relative; left:1.2em; top:-1.3em; cursor:auto; transition:0.3s ease;
 }
-input:focus~label,input:not(:placeholder-shown)~label{
-    top:-3em;
-    color:hsl(327,90%,28%);
-    font-size:15px;
-}
-.recover{
-    text-align:right;
-    font-size:1rem;
-    margin-bottom:1rem;
+input:focus~label, input:not(:placeholder-shown)~label{ top:-3em; color:hsl(327,90%,28%); font-size:15px; }
 
-}
-.recover a{
-    text-decoration:none;
-    color:#8b0000;
-}
-.recover a:hover{
-    color:#8b0000;
-    text-decoration:underline;
-}
-.btn{
-    font-size:1.1rem;
-    padding:8px 0;
-    border-radius:5px;
-    outline:none;
-    border:none;
-    width:100%;
-    background:#8b0000;
-    color:white;
-    cursor:pointer;
-    transition:0.9s;
-}
-.btn:hover{
-    background:#07001f;
-}
-.or{
-    font-size:1.1rem;
-    margin-top:0.5rem;
-    text-align:center;
-}
-.icons{
-    text-align:center;
-}
+.recover{ text-align:right; font-size:1rem; margin-bottom:1rem; }
+.recover a{ text-decoration:none; color:#8b0000; }
+.recover a:hover{ color:#8b0000; text-decoration:underline; }
+
+/* Buttons */
+.btn{ font-size:1.1rem; padding:8px 0; border-radius:5px; outline:none; border:none; width:100%; background:#8b0000; color:#fff; cursor:pointer; transition:0.2s; }
+.btn:hover{ background:#07001f; }
+.btn--sm{ width:auto; font-size:.92rem; padding:6px 10px; border-radius:8px; }
+.btn--light{ background:#fff; color:#111; border:1px solid #ddd; }
+.btn--light:hover{ background:#f2f2f2; }
+
+/* Icons row on auth */
+.or{ font-size:1.1rem; margin-top:0.5rem; text-align:center; }
+.icons{ text-align:center; }
 .icons i{
-    color:#8b0000;
-    border-radius:10px;
-    font-size:1.5rem;
-    cursor:pointer;
-    border:2px solid #dfe9f5;
-    margin:0 15px;
-    transition:0.2s;
+  color:#8b0000; border-radius:10px; font-size:1.5rem; cursor:pointer;
+  border:2px solid #dfe9f5; margin:0 15px; transition:0.2s;
+  display:inline-flex; width:56px; height:56px; justify-content:center; align-items:center; padding:0;
+}
+.icons i:hover{ background:#07001f; font-size:1.6rem; border:2px solid #8b0000; }
 
-    display: inline-flex;        
-    width: 56px;                 /* 固定方块大小 */
-    height: 56px;               
-    justify-content: center;     /* 居中内容 */
-    align-items: center;         /* 居中内容 */
-    padding: 0;                  
+.links{ display:flex; justify-content:space-around; padding:0 4rem; margin-top:0.9rem; font-weight:bold; }
+button{ color:#8b0000; border:none; background:transparent; font-size:1rem; font-weight:bold; }
+button:hover{ text-decoration:underline; color:#8b0000; }
 
+.toggle-password{ position:absolute; right:10px; top:0; transform:translateY(0); cursor:pointer; color:#555; font-size:1rem; z-index:2; }
 
-}
-.icons i:hover{
-    background:#07001f;
-    font-size:1.6rem;
-    border:2px solid #8b0000;
-}
-.links{
-    display:flex;
-    justify-content:space-around;
-    padding:0 4rem;
-    margin-top:0.9rem;
-    font-weight:bold;
-}
-button{
-    color:#8b0000;
-    border:none;
-    background-color:transparent;
-    font-size:1rem;
-    font-weight:bold;
-}
-button:hover{
-    text-decoration:underline;
-    color:#8b0000;
-}
+/* Select placeholders */
+select:required:invalid{ color:#757575; }
+select option[value=""]{ color:#757575; }
+select:valid{ color:inherit; }
+select#role{ margin-bottom:1rem; }
 
-.toggle-password {
-    position: absolute;
-    right: 10px;
-    top:0;                              
-    transform: translateY(0);
-    cursor: pointer;
-    color: #555;
-    font-size: 1rem;
-    z-index: 2;
-    
-}
-
-/* 让 select 的占位选项呈现灰色，选中有效项后恢复 */
-select:required:invalid {           /* 未选择有效值时 */
-  color: #757575;
-}
-select option[value=""] {           /* 占位项 */
-  color: #757575;
-}
-select:valid {                      /* 选择有效值后 */
-  color: inherit;
-}
-
-select#role {
-     margin-bottom: 1rem; 
-}
-
+/* Legacy select underline */
 select{
-    color:inherit;
-    width:100%;
-    background-color:transparent;
-    border:none;
-    border-bottom:1px solid #757575;
-    padding-left:1.5rem;
-    font-size:15px;
-    font-family:inherit;
-    appearance:none;
+  color:inherit; width:100%; background:transparent; border:none; border-bottom:1px solid #757575;
+  padding-left:1.5rem; font-size:15px; font-family:inherit; appearance:none;
 }
+select:focus{ outline:transparent; border-bottom:2px solid hsl(327,90%,28%); background:transparent; }
 
-
-select:focus{
-    outline:transparent;
-    border-bottom:2px solid hsl(327,90%,28%);
-    background-color:transparent;
-} 
-
-/* For forgot password */
-/* lightweight alert utility */
-.alert{
-  margin: 0.5rem 2rem;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  line-height: 1.4;
-}
+/* Alerts */
+.alert{ margin:0.5rem 2rem; padding:0.75rem 1rem; border-radius:6px; font-size:0.95rem; line-height:1.4; }
 .alert.success{ background:#e6ffed; border:1px solid #b7f5c3; color:#165b31; }
 .alert.danger{  background:#ffecec; border:1px solid #f5b7b7; color:#7d1a1a; }
 .alert.info{    background:#eef5ff; border:1px solid #bdd1ff; color:#1a3a7d; }
 
-
-/* =========================================================
-   Unified Dashboard Styles (admin / parent / teacher)
-   ========================================================= */
-
-/* Header */
+/* Header/Nav (Admin/Parent/Teacher) */
 .admin-header, .parent-header, .teacher-header {
-  max-width: 960px;
-  margin: 28px auto 8px;
-  padding: 0 16px;
-  gap: 12px;
-  display:flex;
-  align-items:center;
-  justify-content: center;
-  flex-direction: column;
-  text-align: center;
+  max-width:960px; margin:28px auto 8px; padding:0 16px;
+  gap:12px; display:flex; align-items:center; justify-content:center; flex-direction:column; text-align:center;
 }
-.admin-title, .parent-title, .teacher-title { margin: 0 0 .25rem; }
+.admin-title, .parent-title, .teacher-title{ margin:0 0 .25rem; }
 
-/* Nav */
-.admin-nav, .parent-nav, .teacher-nav {
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:center;
-  gap:12px;
+.admin-nav, .parent-nav, .teacher-nav{ display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
+.admin-link, .parent-link, .teacher-link{
+  display:inline-block; padding:8px 12px; border-radius:10px; text-decoration:none;
+  background:#ffffffcc; color:#111; box-shadow:0 2px 8px rgba(0,0,0,.12);
 }
+.admin-link:hover, .parent-link:hover, .teacher-link:hover{ opacity:.9; }
+.admin-link.active, .parent-link.active, .teacher-link.active{ background:#111; color:#fff; }
+.logout{ color:#a00; }
 
-.admin-link, .parent-link, .teacher-link {
-  display:inline-block;
-  padding:8px 12px;
-  border-radius:10px;
-  text-decoration:none;
-  background:#ffffffcc;
-  color:#111;
-  box-shadow:0 2px 8px rgba(0,0,0,.12);
+/* Home grid/cards */
+.admin-home, .parent-home, .teacher-home{
+  max-width:960px; margin:32px auto; padding:0 16px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; justify-content:center; text-align:center;
 }
-
-.admin-link:hover, .parent-link:hover, .teacher-link:hover { opacity:.9; }
-.admin-link.active, .parent-link.active, .teacher-link.active {
-  background:#111;
-  color:#fff;
-}
-.logout { color:#a00; }
-
-/* Home grid */
-.admin-home, .parent-home, .teacher-home {
-  max-width:960px;
-  margin:32px auto;
-  padding:0 16px;
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
-  gap:20px;
-  justify-content:center;
-  text-align:center;
-}
-
-/* Home card */
 .home-card{
-  display:block;
-  background:#fff;
-  border-radius:14px;
-  padding: 24px 22px;  
-  box-shadow:0 10px 30px rgba(0,0,0,.12);
-  text-decoration:none;
-  color:inherit;
-  transition: transform .12s ease, box-shadow .12s ease;
+  display:block; background:#fff; border-radius:14px; padding:24px 22px;
+  box-shadow:0 10px 30px rgba(0,0,0,.12); text-decoration:none; color:inherit;
+  transition:transform .12s ease, box-shadow .12s ease;
 }
-
-.home-card:hover{ transform: translateY(-2px); box-shadow:0 14px 34px rgba(0,0,0,.16); }
+.home-card:hover{ transform:translateY(-2px); box-shadow:0 14px 34px rgba(0,0,0,.16); }
 .home-icon{ font-size:32px; }
 .home-title{ margin-top:8px; font-weight:700; font-size:18px; }
 .home-sub{ margin-top:4px; color:#666; font-size:13px; }
 
-/* Utilities */
-.muted { opacity:.75; font-size:.9em; }
-.row-between { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
-.card { background:#fff; border:1px solid #eee; border-radius:.75rem; padding:1rem; margin:1rem 0; }
-.table-wrap { overflow:auto; }
-.table { width:100%; border-collapse:collapse; }
-.table th, .table td { border-top:1px solid #eee; padding:.6rem .5rem; text-align:left; }
-.tag { display:inline-block; font-size:.75rem; padding:.15rem .4rem; border:1px solid #ddd; border-radius:.4rem; margin-left:.25rem; }
-textarea.comment { width:100%; min-height:64px; resize:vertical; }
-input.grade { width:110px; }
+.muted{ opacity:.75; font-size:.9em; }
+.row-between{ display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
+.card{ background:#fff; border:1px solid #eee; border-radius:.75rem; padding:1rem; margin:1rem 0; }
 
-/* Responsive adjustments */
-@media (min-width: 1400px){
+/* Responsive max widths */
+@media (min-width:1400px){
   .admin-header, .parent-header, .teacher-header,
-  .admin-home, .parent-home, .teacher-home {
-    max-width: 1040px;
-  }
+  .admin-home, .parent-home, .teacher-home { max-width:1040px; }
 }
-@media (max-width: 640px){
+@media (max-width:640px){
   .admin-header, .parent-header, .teacher-header,
-  .admin-home, .parent-home, .teacher-home {
-    padding-left:16px;
-    padding-right:16px;
-  }
+  .admin-home, .parent-home, .teacher-home { padding-left:16px; padding-right:16px; }
 }
 
-/* =========================
-   Print view (roster sheet)
-   ========================= */
-
-/* Only show brand in print. */
-.print-brand { display: none; }
-
-/* Top-level print page margins  */
-@page { margin: 12mm; }
-
-@media print {
-  /* Hide app chrome in print (teacher dashboard) */
-  .teacher-header,
-  .teacher-nav,
-  .actions,
-  .btn,
-  .alert {
-    display: none !important;
-  }
-
-
-  body {
-    background: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Flatten cards for print */
-  .card {
-    box-shadow: none !important;
-    border: none !important;
-    background: #fff !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-
-  .table-wrap {
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-  .table thead { display: table-header-group; } /* repeat header per page */
-  .table tr    { page-break-inside: avoid; }    /* avoid row split */
-
-  /* Brand at top-right, small size */
-  .print-brand {
-    display: block !important;
-    position: fixed;
-    top: 6mm;
-    right: 6mm;
-    left: auto;
-    text-align: right;
-    font-weight: 600;
-    font-size: 12pt;    /* smaller to match dashboard tone */
-    background: transparent;
-    padding: 0;
-    border: 0;
-    z-index: 9999;
-  }
-
-  /* Push printable content down to avoid overlap with brand */
-  .print-sheet {
-    margin-top: 18mm !important;
-  }
+/* Print */
+@page { margin:12mm; }
+@media print{
+  .teacher-header, .teacher-nav, .actions, .btn, .alert{ display:none!important; }
+  body{ background:#fff!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .card{ box-shadow:none!important; border:none!important; background:#fff!important; padding:0!important; margin:0!important; }
+  .table-wrap{ padding:0!important; overflow:visible!important; }
+  .table thead{ display:table-header-group; }
+  .table tr{ page-break-inside:avoid; }
+  .print-brand{ display:block!important; position:fixed; top:6mm; right:6mm; left:auto; text-align:right; font-weight:600; font-size:12pt; background:transparent; padding:0; border:0; z-index:9999; }
+  .print-sheet{ margin-top:18mm!important; }
 }
 
-details {
-  font:16px "Open Sans", Calibri, sans-serif;
-  width: 620px;
+/* Details summary default look */
+details{ font:16px "Open Sans", Calibri, sans-serif; width:620px; }
+details > summary{ padding:2px 6px; width:15em; background:#ddd; border:none; box-shadow:3px 3px 4px black; cursor:pointer; }
+details:open > summary{ background:#ccf; }
+
+/* Main content width */
+.admin-main, .teacher-main, .parent-main{ max-width:1100px; margin:20px auto 36px; padding:0 16px; }
+
+/* Tables */
+.table-wrap{ overflow:auto; }
+.table{ width:100%; border-collapse:collapse; }
+.table th, .table td{ border-top:1px solid #eee; padding:.6rem .5rem; text-align:left; }
+.table-wrap.is-scroll{ max-height:440px; border:1px solid #eee; border-radius:8px; overflow:auto; }
+.table thead th{ position:sticky; top:0; background:#fff; box-shadow:0 1px 0 #eee; }
+.table tbody tr:nth-child(even) td{ background:#fafafa; }
+
+/* Inputs used inside course table rows */
+.table .cell-input{
+  width:100%; padding:.28rem .4rem; border:1px solid #ddd; border-radius:6px; font-size:14px; background:#fff;
 }
-details > summary {
-  padding: 2px 6px;
-  width: 15em;
-  background-color: #dddddd;
-  border: none;
-  box-shadow: 3px 3px 4px black;
-  cursor: pointer;
+tr.row-new td, tr.row-edit td{ background:#fff7e6; }
+td.actions{ white-space:nowrap; }
+
+/* Toolbar (Courses) */
+.toolbar{ margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+
+/* File badge */
+.file-badge{ font-size:12px; padding:2px 6px; border:1px solid #e5e7eb; border-radius:6px; background:#f7f7f9; color:#333; }
+
+/* Year select in toolbars */
+.year-switch{ display:flex; align-items:center; gap:8px; }
+.year-select{ padding:6px 8px; border:1px solid #ddd; border-radius:6px; background:#fff; }
+
+/* ================= Modal (Import) ================= */
+.modal{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+  padding:16px; background:rgba(0,0,0,.45); z-index:9999;
 }
-details:open > summary {
-  background-color: #ccccff;
+.modal.is-open{ display:flex; }
+.modal__dialog{
+  width:min(860px,96vw); max-height:90vh; background:#fff;
+  border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.25); overflow:hidden;
 }
+.modal__header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-bottom:1px solid #eee;
+}
+.modal__header h4{ margin:0; }
+.modal__close{ appearance:none; border:0; background:#eee; border-radius:8px; width:32px; height:32px; font-size:18px; cursor:pointer; }
+.modal__header .modal__close{
+  width:auto; height:auto; padding:6px 10px; font-size:14px; background:#fff; border:1px solid #ddd; border-radius:8px; cursor:pointer;
+}
+
+.modal__body{ padding:14px 16px; overflow:auto; }
+
+.import-step{ display:flex; align-items:center; gap:10px; margin:8px 0 12px; }
+.stepper{ display:flex; gap:8px; list-style:none; padding:0; margin:0 0 10px; }
+.stepper li{ padding:4px 8px; border-radius:6px; border:1px solid #eee; background:#fafafa; font-size:13px; }
+.stepper li.active{ border-color:#333; background:#f0f3ff; }
+
+/* Form fields inside modal */
+.modal label{ position:static; display:block; margin:0 0 6px; color:#333; }
+.modal input[type="text"], .modal input[type="number"], .modal select{
+  width:100%; background:#fff; border:1px solid #ddd; border-radius:8px; padding:8px 10px; font-size:14px; box-sizing:border-box;
+}
+.modal .btn{ width:auto; }
+.modal .form-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0 12px; }
+.modal .grow{ flex:1 1 260px; }
+.modal .table-wrap{ max-height:48vh; }
+
+/* Disabled button state */
+.btn[disabled]{ opacity:.5; cursor:not-allowed; pointer-events:none; }
+
