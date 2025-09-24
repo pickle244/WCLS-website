@@ -19,109 +19,79 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 /* =========================================================
    Courses table: click any non-action cell to enter edit mode
    ========================================================= */
-(() => {
-  const tbl = document.getElementById('editableTable');
-  if (!tbl) return;
-  tbl.addEventListener('click', (ev) => {
-    const td = ev.target.closest('td');
-    const tr = ev.target.closest('tr');
-    if (!td || !tr) return;
-    if (tr.classList.contains('row-new')) return;   // skip the "new" row
-    if (td.classList.contains('actions')) return;   // ignore action column
-    const id = tr.dataset.id;
-    if (!id) return;
-    const url = new URL(location.href);
-    url.searchParams.set('view','courses');
-    url.searchParams.set('edit', id);
-    location.href = url.toString();
-  });
-})();
+// Courses table: click any non-action cell to enter edit mode
+    (function(){
+      var tbl = document.getElementById('editableTable');
+      if (!tbl) return;
+      tbl.addEventListener('click', function(ev){
+        var td = ev.target.closest('td');
+        var tr = ev.target.closest('tr');
+        if (!td || !tr) return;
+        if (tr.classList.contains('row-new')) return;   // skip the "new" row
+        if (td.classList.contains('actions')) return;   // ignore action column
+        var id = tr.dataset.id;
+        if (!id) return;
+        var url = new URL(location.href);
+        url.searchParams.set('edit', id);
+        location.href = url.toString();
+      });
+    })();
 
+    // Import modal (single-step)
+    (function(){
+      var modal = document.getElementById('importModal');
+      if (!modal) return;
 
-/* =========================================================
-   Import modal
-   - Step 1: select year
-   - Step 2: choose CSV → preview → (server renders Import)
-   ========================================================= */
-(() => {
-  const modal = document.getElementById('importModal');
-  if (!modal) return;
+      var closeBtn   = document.getElementById('close-import');
+      var chooseBtn  = document.getElementById('btn-import-choose');
+      var fileInput  = document.getElementById('import-file');
+      var fileBadge  = document.getElementById('import-chosen-file');
+      var previewBtn = document.getElementById('btn-preview');
+      var openBtn    = document.getElementById('open-import');
 
-  // UI handles
-  const openBtn    = document.getElementById('open-import');
-  const closeBtn   = document.getElementById('close-import'); 
-  const step1      = document.getElementById('import-step1');
-  const step2      = document.getElementById('import-step2');
-  const s1         = document.getElementById('stepper-1');
-  const s2         = document.getElementById('stepper-2');
+      function openModal(){
+        // wipe server-rendered results on reopen
+        modal.querySelectorAll('.import-result').forEach(function(el){ el.remove(); });
+        // reset file
+        if (fileInput) fileInput.value = '';
+        if (fileBadge) fileBadge.textContent = 'No file chosen';
+        if (previewBtn){ previewBtn.hidden = true; previewBtn.disabled = true; }
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden','false');
+      }
+      function closeModal(){
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden','true');
+      }
 
-  const yearSelect = document.getElementById('importTargetYear');
-  const hiddenYear = document.getElementById('importHiddenTarget');
+      if (openBtn)   openBtn.addEventListener('click', openModal);
+      if (closeBtn)  closeBtn.addEventListener('click', closeModal);
+      modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
 
-  const chooseBtn  = document.getElementById('btn-import-choose');
-  const fileInput  = document.getElementById('import-file');
-  const fileBadge  = document.getElementById('import-chosen-file');
-  const previewBtn = document.getElementById('btn-preview');
+      if (chooseBtn) chooseBtn.addEventListener('click', function(){ if (fileInput) fileInput.click(); });
+      if (fileInput) fileInput.addEventListener('change', function(){
+        var f = fileInput.files && fileInput.files[0];
+        if (fileBadge) fileBadge.textContent = f ? ('Selected: ' + f.name) : 'No file chosen';
+        if (previewBtn){ previewBtn.hidden = !f; previewBtn.disabled = !f; }
+      });
 
-  // Helpers
-  function goStep(n){
-    step1.hidden = (n !== 1);
-    step2.hidden = (n !== 2);
-    s1.classList.toggle('active', n === 1);
-    s2.classList.toggle('active', n === 2);
-  }
-  function wipeServerResults(){
-    modal.querySelectorAll('.import-result').forEach(el => el.remove());
-  }
-  function resetStep2(){
-    if (hiddenYear && yearSelect) hiddenYear.value = yearSelect.value;
-    if (fileInput) fileInput.value = '';
-    if (fileBadge) fileBadge.textContent = 'No file chosen';
-    if (previewBtn){ previewBtn.hidden = true; previewBtn.disabled = true; }
-  }
-  function openModal(){
-    wipeServerResults();
-    resetStep2();
-    goStep(1);
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden','false');
-  }
-  function closeModal(){
-    modal.classList.remove('is-open');
-    modal.setAttribute('aria-hidden','true');
-  }
+      // If server rendered preview/import result (validation errors etc.), keep modal open.
+      if (modal.classList.contains('is-open') && modal.querySelector('.import-result')) {
+        modal.setAttribute('aria-hidden','false');
+      }
+    })();
 
-  // Open / close
-  openBtn  && openBtn.addEventListener('click', openModal);
-  closeBtn && closeBtn.addEventListener('click', closeModal);
-  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-  // Keep hidden year in sync
-  yearSelect && yearSelect.addEventListener('change', () => {
-    if (hiddenYear) hiddenYear.value = yearSelect.value;
-  });
-
-  // Click "Choose CSV" → go step 2 and open file picker
-  chooseBtn && chooseBtn.addEventListener('click', () => {
-    if (hiddenYear && yearSelect) hiddenYear.value = yearSelect.value; // lock target year
-    goStep(2);
-    fileInput && fileInput.click();
-  });
-
-  // After selecting a file: show filename & enable Preview
-  fileInput && fileInput.addEventListener('change', () => {
-    const f = fileInput.files && fileInput.files[0];
-    if (fileBadge) fileBadge.textContent = f ? ('Selected: ' + f.name) : 'No file chosen';
-    if (previewBtn){ previewBtn.hidden = !f; previewBtn.disabled = !f; }
-  });
-
-  // If the server returned preview/import result, stay on Step 2 on first paint
-  if (modal.classList.contains('is-open') && modal.querySelector('.import-result')) {
-    goStep(2);
-    if (hiddenYear && yearSelect && !hiddenYear.value) hiddenYear.value = yearSelect.value;
-  } else {
-    goStep(1);
-  }
-})();
-
+    // "Plan Next Year" dropdown on current-year page
+    (function(){
+      var btn = document.getElementById('btn-plan-next');
+      var menu = document.getElementById('menu-plan-next');
+      if (!btn || !menu) return;
+      btn.addEventListener('click', function(){
+        var shown = menu.style.display === 'block';
+        menu.style.display = shown ? 'none' : 'block';
+      });
+      document.addEventListener('click', function(e){
+        if (!menu.contains(e.target) && e.target !== btn) menu.style.display = 'none';
+      });
+    })();

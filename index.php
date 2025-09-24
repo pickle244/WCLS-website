@@ -8,13 +8,14 @@ require 'connection.php';
 // Block unauthenticated users
 if (!isset($_SESSION['user'])) { header('Location: login.php'); exit; }
 
-// View router
+// View router (coarse views only; sub-modes handled by query params or sub-views)
 $view = isset($_GET['view']) ? $_GET['view'] : 'home';
 
 // Build same-page links with a new `view` query param
-function view_url($v){
+function view_url($v, array $extra = []){
   $base = strtok($_SERVER['REQUEST_URI'], '?');
-  return htmlspecialchars($base.'?view='.$v, ENT_QUOTES, 'UTF-8');
+  $q = array_merge(['view'=>$v], $extra);
+  return htmlspecialchars($base.'?'.http_build_query($q), ENT_QUOTES, 'UTF-8');
 }
 
 // CSRF token for all POST actions on this page
@@ -25,12 +26,57 @@ $e = fn($s)=>htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 
 // ---------------------------------------------------------
+// Academic year helpers (backed by `years` table)
+// ---------------------------------------------------------
+
+/**
+ * Format 2025 -> "2025-2026" for display purposes.
+ */
+function year_label(int $y): string { return $y.'-'.($y+1); }
+
+/**
+ * Return the start year (e.g. 2025 for 2025-2026) of the current academic year.
+ * Driven by the `years` table (is_current=1). If the table isn't ready,
+ * we fall back to a simple 9/1 cutoff rule to avoid a hard failure.
+ */
+function current_start_year_db(mysqli $conn): int {
+  $res = $conn->query("SELECT start_year FROM years WHERE is_current=1 LIMIT 1");
+  if ($res && $row = $res->fetch_assoc()) return (int)$row['start_year'];
+  // Fallback: 9/1 cutoff; safe guard if `years` hasn't been seeded.
+  $Y=(int)date('Y'); $m=(int)date('n'); return ($m>=9)?$Y:($Y-1);
+}
+
+/**
+ * Compute the "working year" for course pages:
+ * - courses_current: current academic start year
+ * - courses_next:    current academic start year + 1
+ */
+function working_year_for_courses(string $subview, int $current): int {
+  return ($subview === 'courses_next') ? ($current + 1) : $current;
+}
+
+/**
+ * Hard guard to reject any write attempts on a year that does not match the page context.
+ * This prevents crafted forms from writing into other years.
+ */
+function assert_year_matches_context_or_die(mysqli $conn, string $courses_subview, int $submitted_year, int $current_year): void {
+  $expected = working_year_for_courses($courses_subview, $current_year);
+  if ($submitted_year !== $expected) {
+    http_response_code(400);
+    $safe = htmlspecialchars(year_label($expected), ENT_QUOTES, 'UTF-8');
+    echo '<div class="alert danger">Writes are only allowed in '. $safe .' on this page.</div>';
+    exit;
+  }
+}
+
+
+// ---------------------------------------------------------
 // Teacher helpers (render <option> for teacher drop-downs)
 // ---------------------------------------------------------
 if (!function_exists('render_teacher_options')) {
   /**
    * Render <option> list for teacher select from [id => "First Last"].
-   * $selected_id (optional) preselects an option.
+   * $selected_id  preselects an option.
    */
   function render_teacher_options(array $teachers, $selected_id = null): string {
     $h = fn($s)=>htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -46,40 +92,10 @@ if (!function_exists('render_teacher_options')) {
 
 
 // ---------------------------------------------------------
-// Academic year helpers
+// CSV helpers shared by Import/Export
 // ---------------------------------------------------------
-function get_year_list(mysqli $conn): array {
-  $years = [];
-  $res = $conn->query("SELECT DISTINCT year FROM courses ORDER BY year DESC");
-  if ($res) while($r = $res->fetch_assoc()) $years[] = (int)$r['year'];
-  return $years;
-}
-function year_label(int $y){ return $y.'-'.($y+1); }
 
-$year_list    = get_year_list($conn);
-$default_year = !empty($year_list) ? $year_list[0] : (int)date('Y');
-
-// Support both direct select (?year=YYYY) and arrow nav (?nav=prev|next)
-if (isset($_GET['nav'])) {
-  $base_year     = isset($_GET['year']) ? (int)$_GET['year'] : $default_year;
-  $selected_year = ($_GET['nav'] === 'prev') ? ($base_year - 1) : ($base_year + 1);
-} else {
-  $selected_year = isset($_GET['year']) ? (int)$_GET['year'] : $default_year;
-}
-
-
-// ---------------------------------------------------------
-// Server messages & modal flags
-// ---------------------------------------------------------
-$courses_msg_html    = '';   // table-level messages (add/update/copy)
-$import_preview_html = '';   // import preview block inside modal
-$import_result_html  = '';   // import final result block inside modal
-$open_import_modal   = false;
-
-
-// ---------------------------------------------------------
-// Import: CSV helpers
-// ---------------------------------------------------------
+// Header aliases for import mapping
 $HEADER_ALIASES = [
   'course_name'        => ['course name','name','课程名','课程名称'],
   'course_code'        => ['course code','code','课程代码','课程编号'],
@@ -121,11 +137,68 @@ function read_csv_preview($tmp_path,$limit=10){
 
 
 // ---------------------------------------------------------
+// Page-scoped state
+// ---------------------------------------------------------
+$current_year = current_start_year_db($conn);
+
+// Secondary router inside "Edit Courses": subviews are 'courses_current' and 'courses_next'
+$courses_subview = in_array($view, ['courses_current','courses_next'], true) ? $view : 'courses_current';
+$working_year    = working_year_for_courses($courses_subview, $current_year);
+
+// Server messages & modal flags
+$courses_msg_html    = '';   // table-level messages (add/update/copy)
+$import_preview_html = '';   // import preview block inside modal
+$import_result_html  = '';   // import final result block inside modal
+$open_import_modal   = false;
+
+
+// ---------------------------------------------------------
+// Handle downloadable actions early (template / export)
+// These are GET actions and do not alter data.
+// ---------------------------------------------------------
+if (($_GET['action'] ?? '') === 'download_template' && in_array($view, ['courses_current','courses_next'], true)) {
+  // Single CSV template for the current courses subview's year
+  $filename = 'courses_template_'.$working_year.'.csv';
+  header('Content-Type: text/csv; charset=UTF-8');
+  header('Content-Disposition: attachment; filename="'.$filename.'"');
+  $out = fopen('php://output', 'w');
+  // UTF-8 BOM for Excel friendliness
+  fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+  fputcsv($out, ['course_name','course_code','course_price','course_description','program','term','year','teacher_id','default_capacity','room_number']);
+  fputcsv($out, ['中文一年级','C101','300','一年级综合课','Sunday','Fall',$working_year,'12','25','101']);
+  fputcsv($out, ['中文二年级','C201','320','二年级综合课','Sunday','Fall',$working_year,'15','28','102']);
+  fclose($out);
+  exit;
+}
+
+if (($_GET['action'] ?? '') === 'export_year' && in_array($view, ['courses_current','courses_next'], true)) {
+  // Export all courses for the working year
+  $filename = 'courses_'.$working_year.'.csv';
+  header('Content-Type: text/csv; charset=UTF-8');
+  header('Content-Disposition: attachment; filename="'.$filename.'"');
+  $out = fopen('php://output', 'w');
+  fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+  $cols = ['id','course_name','course_code','course_price','course_description','program','term','year','teacher_id','default_capacity','room_number','created_at'];
+  fputcsv($out, $cols);
+  $stmt=$conn->prepare("SELECT ".implode(',', $cols)." FROM courses WHERE year=? ORDER BY program, term, course_code");
+  $stmt->bind_param('i', $working_year);
+  $stmt->execute();
+  $rs=$stmt->get_result();
+  while($row=$rs->fetch_assoc()){
+    $line=[]; foreach($cols as $c) $line[] = $row[$c] ?? '';
+    fputcsv($out, $line);
+  }
+  fclose($out); exit;
+}
+
+
+// ---------------------------------------------------------
 // Import: Step 2 preview (modal posts back here)
 // ---------------------------------------------------------
-if (($_POST['action'] ?? '') === 'preview_courses') {
+if (($_POST['action'] ?? '') === 'preview_courses'
+    && in_array($view, ['courses_current','courses_next'], true)) {
   $open_import_modal = true;
-  $target_year = isset($_POST['target_year']) ? (int)$_POST['target_year'] : $selected_year;
+  $target_year = $working_year; // lock to page context
 
   if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) {
     $import_preview_html = '<div class="alert danger">Invalid request (CSRF).</div>';
@@ -175,7 +248,6 @@ if (($_POST['action'] ?? '') === 'preview_courses') {
           echo '<form method="post" action="'.$e($_SERVER['REQUEST_URI']).'">';
           echo '<input type="hidden" name="action" value="import_courses">';
           echo '<input type="hidden" name="csrf" value="'.$e($_SESSION['csrf']).'">';
-          echo '<input type="hidden" name="target_year" value="'.$e($target_year).'">';
           echo '<input type="hidden" name="payload" value="'.json_h($preview_items).'">';
           echo '<div class="input-group" style="margin:8px 0;"><input type="submit" class="btn btn--sm" value="Import"></div>';
           echo '</form>';
@@ -191,9 +263,10 @@ if (($_POST['action'] ?? '') === 'preview_courses') {
 // ---------------------------------------------------------
 // Import: Final insertion (modal stays open to show result)
 // ---------------------------------------------------------
-if (($_POST['action'] ?? '') === 'import_courses') {
+if (($_POST['action'] ?? '') === 'import_courses'
+    && in_array($view, ['courses_current','courses_next'], true)) {
   $open_import_modal = true;
-  $target_year = isset($_POST['target_year']) ? (int)$_POST['target_year'] : $selected_year;
+  $target_year = $working_year; // lock to page context
 
   if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) {
     $import_result_html = '<div class="alert danger">Invalid request (CSRF).</div>';
@@ -281,18 +354,18 @@ if (($_POST['action'] ?? '') === 'import_courses') {
 
 
 // ---------------------------------------------------------
-// Copy current year → next year (skip duplicates)
+// Copy current year → next year (skip duplicates) then redirect
+// Triggered from "Plan Next Year" menu (copy option).
 // ---------------------------------------------------------
-if (($_POST['action'] ?? '') === 'copy_year' && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
-  $from=(int)($_POST['from_year'] ?? $selected_year);
-  $to=$from+1;
+if (($_POST['action'] ?? '') === 'copy_to_next_year'
+    && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+  $from = $current_year;
+  $to   = $current_year + 1;
 
   $res=$conn->prepare("SELECT * FROM courses WHERE year=?");
   $res->bind_param('i',$from); $res->execute(); $rs=$res->get_result();
 
-  if(!$rs || $rs->num_rows===0){
-    $courses_msg_html='<div class="alert info">No courses in '. $e(year_label($from)).' to copy.</div>';
-  } else {
+  if($rs && $rs->num_rows>0){
     $rows=$rs->fetch_all(MYSQLI_ASSOC);
     $conn->begin_transaction();
     try{
@@ -312,18 +385,23 @@ if (($_POST['action'] ?? '') === 'copy_year' && hash_equals($_SESSION['csrf'] ??
         if($insstmt->execute()) $ins++; else $skip++;
       }
       $conn->commit();
-      $courses_msg_html='<div class="alert info">Copied '. $e(year_label($from)).' → '. $e(year_label($to)).'. Inserted '.$ins.' · Skipped '.$skip.' (duplicates).</div>';
-      $year_list = get_year_list($conn); // refresh available years in the selector
+      // After copy, go to "next year" page to continue editing
+      header('Location: '.view_url('courses_next'));
+      exit;
     }catch(Throwable $ex){
       $conn->rollback();
       $courses_msg_html='<div class="alert danger">Copy failed. Changes rolled back.</div>';
     }
+  } else {
+    // No rows to copy → still go to next year page (empty state)
+    header('Location: '.view_url('courses_next'));
+    exit;
   }
 }
 
 
 // ---------------------------------------------------------
-// Inline create / update (same validations as import)
+// Inline create / update for courses (same validations as import)
 // ---------------------------------------------------------
 $teacher_exists = function(int $tid) use ($conn): bool {
   $stmt=$conn->prepare("SELECT 1 FROM teachers WHERE id=?"); if(!$stmt) return false;
@@ -340,11 +418,16 @@ $dup_exists_edit = function(string $program,string $term,int $year,string $code,
 
 $edit_id = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 
-// ----- First row form -----
-if (($_POST['action'] ?? '') === 'add_course_inline' && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+// Create
+if (($_POST['action'] ?? '') === 'add_course_inline'
+    && in_array($view, ['courses_current','courses_next'], true)
+    && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
   $program=trim($_POST['program']??''); $code=trim($_POST['course_code']??''); $name=trim($_POST['course_name']??'');
   $price=(float)($_POST['course_price']??0); $desc=trim($_POST['course_description']??''); $term=trim($_POST['term']??'');
-  $year=(int)($_POST['year']??$selected_year); $tid=(int)($_POST['teacher_id']??0);
+  $year=(int)($_POST['year'] ?? $working_year);
+  // Guard: submitted year must match page context
+  assert_year_matches_context_or_die($conn, $view, $year, $current_year);
+  $tid=(int)($_POST['teacher_id']??0);
   $cap=($_POST['capacity']??'')===''?null:(int)$_POST['capacity']; $room=($_POST['room']??'')===''?null:(int)$_POST['room'];
 
   $errs=[];
@@ -370,12 +453,17 @@ if (($_POST['action'] ?? '') === 'add_course_inline' && hash_equals($_SESSION['c
   }
 }
 
-// ----- Inline edit row -----
-if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+// Update
+if (($_POST['action'] ?? '') === 'update_course'
+    && in_array($view, ['courses_current','courses_next'], true)
+    && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
   $id=(int)($_POST['id']??0);
   $program=trim($_POST['program']??''); $code=trim($_POST['course_code']??''); $name=trim($_POST['course_name']??'');
   $price=(float)($_POST['course_price']??0); $desc=trim($_POST['course_description']??''); $term=trim($_POST['term']??'');
-  $year=(int)($_POST['year']??0); $tid=(int)($_POST['teacher_id']??0);
+  $year=(int)($_POST['year'] ?? 0);
+  // Guard: submitted year must match page context
+  assert_year_matches_context_or_die($conn, $view, $year, $current_year);
+  $tid=(int)($_POST['teacher_id']??0);
   $cap=($_POST['capacity']??'')===''?null:(int)$_POST['capacity']; $room=($_POST['room']??'')===''?null:(int)$_POST['room'];
 
   $errs=[];
@@ -400,6 +488,7 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
     }
   }
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -418,10 +507,11 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
 
     <header class="admin-header">
       <h1 class="admin-title">Admin Dashboard</h1>
+      <!-- Top-level nav kept minimal by design; course/teacher editing live under "Edit Records" -->
       <nav class="admin-nav">
         <a class="admin-link <?php echo ($view==='home')?'active':'';    ?>" href="<?php echo view_url('home'); ?>">Home</a>
-        <a class="admin-link <?php echo ($view==='courses')?'active':''; ?>" href="<?php echo view_url('courses'); ?>">Edit Courses</a>
-        <a class="admin-link <?php echo ($view==='teachers')?'active':'';?>" href="<?php echo view_url('teachers'); ?>">Edit Teachers</a>
+        <a class="admin-link <?php echo ($view==='records' || $view==='courses_current' || $view==='courses_next' || $view==='teachers')?'active':''; ?>" href="<?php echo view_url('records'); ?>">Edit Records</a>
+        <a class="admin-link <?php echo ($view==='reports')?'active':''; ?>" href="<?php echo view_url('reports'); ?>">Reports</a>
         <a class="admin-link logout" href="logout.php">Logout</a>
       </nav>
     </header>
@@ -429,10 +519,26 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
     <?php if ($view === 'home'): ?>
 
       <main class="admin-home">
-        <a class="home-card" href="<?php echo view_url('courses'); ?>">
+        <a class="home-card" href="<?php echo view_url('records'); ?>">
+          <div class="home-icon">🛠️</div>
+          <div class="home-title">Edit Records</div>
+          <div class="home-sub">Courses and Teachers</div>
+        </a>
+        <a class="home-card" href="<?php echo view_url('reports'); ?>">
+          <div class="home-icon">📊</div>
+          <div class="home-title">Reports</div>
+          <div class="home-sub">Exports and summaries</div>
+        </a>
+      </main>
+
+    <?php elseif ($view === 'records'): ?>
+
+      <!-- Records landing: split to Courses / Teachers (keeps top-level nav clean) -->
+      <main class="admin-home">
+        <a class="home-card" href="<?php echo view_url('courses_current'); ?>">
           <div class="home-icon">📚</div>
           <div class="home-title">Edit Courses</div>
-          <div class="home-sub">Manage by academic year</div>
+          <div class="home-sub">Current academic year: <?php echo $e(year_label($current_year)); ?></div>
         </a>
         <a class="home-card" href="<?php echo view_url('teachers'); ?>">
           <div class="home-icon">👩‍🏫</div>
@@ -441,7 +547,34 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
         </a>
       </main>
 
-    <?php elseif ($view === 'courses'): ?>
+    <?php elseif ($view === 'teachers'): ?>
+
+      <div class="container" id="teacher_list">
+        <h1>Teachers</h1>
+        <table class="table">
+          <tr><th>name</th><th>user id</th><th>title</th><th>bio</th><th>image</th></tr>
+          <?php
+            $teachers = $conn->query("SELECT * FROM teachers");
+            if ($teachers) while ($row=$teachers->fetch_assoc()){
+              $id=$row['id'];
+              $user = $conn->query("SELECT u.first_name,u.last_name FROM teachers t JOIN users u ON t.user_id=u.id WHERE t.id='$id'")->fetch_assoc();
+              echo "<tr><td>".$e($user['first_name'].' '.$user['last_name'])."</td><td>".$e($row['user_id'])."</td><td>".$e($row['title'])."</td><td>".$e($row['bio'])."</td><td>".$e($row['image'])."</td></tr>";
+            }
+          ?>
+        </table>
+      </div>
+
+    <?php elseif ($view === 'reports'): ?>
+
+      <main class="admin-home">
+        <div class="home-card" style="cursor:default;">
+          <div class="home-icon">ℹ️</div>
+          <div class="home-title">Reports</div>
+          <div class="home-sub">Add report entries here later.</div>
+        </div>
+      </main>
+
+    <?php elseif ($view === 'courses_current' || $view === 'courses_next'): ?>
 
       <?php
       // Build teacher list once (id => "First Last") for all dropdowns below
@@ -460,34 +593,43 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
       <main class="admin-main">
         <section class="card" id="course_card">
           <h3 class="card-title">Courses</h3>
-          <div class="card-sub">View, add and edit courses</div>
+          <div class="card-sub">
+            <?php
+              echo ($view==='courses_current')
+                ? 'Current academic year'
+                : 'Next academic year';
+            ?>
+            · <b><?php echo $e(year_label($working_year)); ?></b>
+          </div>
 
-          <!-- Toolbar: year switch (left), import + copy (right) -->
+          <!-- Toolbar: left (year label), right (import/export/template + plan next year menu only on current page) -->
           <div class="toolbar row-between" style="margin:.5rem 0 0.25rem;">
-            <form class="year-switch" method="get" action="">
-              <input type="hidden" name="view" value="courses">
-              <button type="submit" name="nav" value="prev" class="btn btn--sm btn--light" title="Prev year">◀</button>
-              <select name="year" class="year-select" onchange="this.form.submit()">
-                <?php
-                  $years_to_render=$year_list;
-                  if(!in_array($selected_year,$years_to_render,true)) array_unshift($years_to_render,$selected_year);
-                  foreach($years_to_render as $y){
-                    $sel=($y===$selected_year)?'selected':''; echo '<option value="'.$e($y).'" '.$sel.'>'.$e(year_label($y)).'</option>';
-                  }
-                ?>
-              </select>
-              <button type="submit" name="nav" value="next" class="btn btn--sm btn--light" title="Next year">▶</button>
-            </form>
+            <div class="year-switch">
+              <span class="file-badge">Academic Year: <?php echo $e(year_label($working_year)); ?></span>
+            </div>
 
-            <div>
+            <div class="row-between" style="gap:8px;">
+              <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'download_template']); ?>">Download Template</a>
               <button class="btn btn--sm" id="open-import">Import</button>
-              <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="display:inline"
-                    onsubmit="return confirm('Copy <?php echo $e(year_label($selected_year)); ?> → <?php echo $e(year_label($selected_year+1)); ?> ?');">
-                <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
-                <input type="hidden" name="action" value="copy_year">
-                <input type="hidden" name="from_year" value="<?php echo $e($selected_year); ?>">
-                <button type="submit" class="btn btn--sm btn--light">Copy this year → next year</button>
-              </form>
+              <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'export_year']); ?>">Export CSV</a>
+
+              <?php if ($view==='courses_current'): ?>
+                <!-- Plan next year: dropdown button with two actions (create/edit next year, copy then go next) -->
+                <div class="dropdown" style="display:inline-block; position:relative;">
+                  <button class="btn btn--sm" id="btn-plan-next">Plan Next Year ▾</button>
+                  <div id="menu-plan-next" style="display:none; position:absolute; right:0; top:36px; background:#fff; border:1px solid #ddd; border-radius:8px; min-width:240px; box-shadow:0 10px 24px rgba(0,0,0,.12); z-index:10;">
+                    <a href="<?php echo view_url('courses_next'); ?>" style="display:block; padding:8px 10px; text-decoration:none; color:#111;">Create / edit courses for next year</a>
+                    <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="margin:0;">
+                      <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
+                      <input type="hidden" name="action" value="copy_to_next_year">
+                      <button type="submit" style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;"
+                        onclick="return confirm('Copy all courses from <?php echo $e(year_label($current_year)); ?> to <?php echo $e(year_label($current_year+1)); ?>?');">
+                        Copy from this year
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -503,7 +645,7 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
                 </tr>
               </thead>
               <tbody>
-                <!-- First row: inline create -->
+                <!-- First row: inline create (year is locked to page context; shown as badge + hidden input) -->
                 <tr class="row-new">
                   <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>">
                     <input type="hidden" name="action" value="add_course_inline">
@@ -519,8 +661,11 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
                         <option value="Afterschool">Afterschool</option>
                       </select>
                     </td>
-                    <td><input class="cell-input" name="term"></td>
-                    <td><input class="cell-input" type="number" name="year" value="<?php echo $e($selected_year); ?>" placeholder="YYYY"></td>
+                    <td><input class="cell-input" name="term" placeholder="e.g. Fall"></td>
+                    <td>
+                      <span class="file-badge"><?php echo $e(year_label($working_year)); ?></span>
+                      <input type="hidden" name="year" value="<?php echo $e($working_year); ?>">
+                    </td>
                     <td>
                       <select class="cell-input" name="teacher_id">
                         <?php echo render_teacher_options($teachers_all); ?>
@@ -533,9 +678,9 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
                 </tr>
 
                 <?php
-                  // List rows for selected year
+                  // List rows for working year
                   $stmt=$conn->prepare("SELECT * FROM courses WHERE year=? ORDER BY program, term, course_code");
-                  $stmt->bind_param('i',$selected_year); $stmt->execute(); $courses=$stmt->get_result();
+                  $stmt->bind_param('i',$working_year); $stmt->execute(); $courses=$stmt->get_result();
 
                   if ($courses) while ($row=$courses->fetch_assoc()){
                     $id=(int)$row['id']; $teacher_id=(int)$row['teacher_id'];
@@ -551,20 +696,19 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
                       echo '<td><input class="cell-input" name="course_description" value="'.$e($row['course_description']).'"></td>';
                       echo '<td><input class="cell-input" name="program" value="'.$e($row['program']).'"></td>';
                       echo '<td><input class="cell-input" name="term" value="'.$e($row['term']).'"></td>';
-                      echo '<td><input class="cell-input" type="number" name="year" value="'.$e($row['year']).'"></td>';
+                      // Show year as read-only badge; submit actual value via hidden input
+                      echo '<td><span class="file-badge">'.$e(year_label((int)$row['year'])).'</span><input type="hidden" name="year" value="'.$e((int)$row['year']).'"></td>';
                       echo '<td><select class="cell-input" name="teacher_id">'.render_teacher_options($teachers_all, $teacher_id).'</select></td>';
                       echo '<td><input class="cell-input" type="number" name="capacity" value="'.$e($row['default_capacity']).'"></td>';
                       echo '<td><input class="cell-input" type="number" name="room" value="'.$e($row['room_number']).'"></td>';
-                      $cancel_url = strtok($_SERVER['REQUEST_URI'], '?').'?'.
-                        http_build_query(array_merge($_GET, ['view'=>'courses']), '', '&');
+                      $cancel_url = view_url($view);
                       echo '<td class="actions"><button class="btn btn--sm" type="submit" style="margin-right:6px;">Save</button><a class="btn btn--sm btn--light" href="'.$e($cancel_url).'">Cancel</a></td>';
                       echo '</form></tr>';
                       continue;
                     }
 
                     // Read-only row
-                    $edit_url = strtok($_SERVER['REQUEST_URI'], '?').'?'.
-                      http_build_query(array_merge($_GET, ['view'=>'courses','year'=>$selected_year,'edit'=>$id]), '', '&');
+                    $edit_url = view_url($view, ['edit'=>$id]);
                     echo '<tr data-id="'.$id.'">';
                     echo '<td>'.$e($row['course_name']).'</td><td>'.$e($row['course_code']).'</td><td>'.$e($row['course_price']).'</td>';
                     echo '<td>'.$e($row['course_description']).'</td><td>'.$e($row['program']).'</td><td>'.$e($row['term']).'</td>';
@@ -589,39 +733,17 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
 
           <div class="modal__body">
             <ol class="stepper">
-              <li class="active" id="stepper-1">1. Select year</li>
-              <li id="stepper-2">2. Upload &amp; preview</li>
+              <li class="active">Upload &amp; preview</li>
             </ol>
 
-            <!-- Step 1: choose target academic year -->
-            <div class="import-step" id="import-step1">
-              <div class="form-row">
-                <div class="grow">
-                  <label class="lbl">Import into academic year</label>
-                  <select id="importTargetYear" class="year-select">
-                    <?php
-                      $all = $year_list;
-                      if (!in_array($selected_year,$all,true)) $all[]=$selected_year;
-                      sort($all);
-                      $all = array_values(array_unique(array_merge($all, [$selected_year+1]))); // also offer next year
-                      foreach($all as $y){
-                        $sel=($y===$selected_year)?'selected':''; echo '<option value="'.$e($y).'" '.$sel.'>'.$e(year_label($y)).'</option>';
-                      }
-                    ?>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step 2: upload & preview -->
-            <div class="import-step" id="import-step2" hidden>
+            <div class="import-step" id="import-step2">
               <form action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" method="post" enctype="multipart/form-data" id="import-form">
                 <input type="hidden" name="action" value="preview_courses">
                 <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf'] ?? ''); ?>">
-                <input type="hidden" name="target_year" id="importHiddenTarget">
                 <input type="file" id="import-file" name="courses_file" accept=".csv" hidden>
 
                 <div class="form-row">
+                  <span class="file-badge">Target: <?php echo $e(year_label($working_year)); ?></span>
                   <button type="button" class="btn btn--sm" id="btn-import-choose">Choose CSV</button>
                   <span id="import-chosen-file" class="file-badge">No file chosen</span>
                   <input type="submit" class="btn btn--sm" id="btn-preview" value="Preview" disabled hidden>
@@ -638,8 +760,8 @@ if (($_POST['action'] ?? '') === 'update_course' && hash_equals($_SESSION['csrf'
               <summary>CSV template &amp; header tips</summary>
 <pre style="white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px; padding:8px; border:1px solid #eee; border-radius:8px; background:#fafafa;">
 course_name,course_code,course_price,course_description,program,term,year,teacher_id,default_capacity,room_number
-"中文一年级","C101",300,"一年级综合课","Sunday","Fall",<?php echo $e($selected_year); ?>,12,25,101
-"中文二年级","C201",320,"二年级综合课","Sunday","Fall",<?php echo $e($selected_year); ?>,15,28,102
+"中文一年级","C101",300,"一年级综合课","Sunday","Fall",<?php echo $e($working_year); ?>,12,25,101
+"中文二年级","C201",320,"二年级综合课","Sunday","Fall",<?php echo $e($working_year); ?>,15,28,102
 </pre>
               <div class="muted">Required columns: course_name, course_code, course_price, program, term, year, teacher_id</div>
             </details>
@@ -648,28 +770,12 @@ course_name,course_code,course_price,course_description,program,term,year,teache
         </div>
       </div>
 
-    <?php elseif ($view === 'teachers'): ?>
-
-      <div class="container" id="teacher_list">
-        <h1>Teachers</h1>
-        <table class="table">
-          <tr><th>name</th><th>user id</th><th>title</th><th>bio</th><th>image</th></tr>
-          <?php
-            $teachers = $conn->query("SELECT * FROM teachers");
-            if ($teachers) while ($row=$teachers->fetch_assoc()){
-              $id=$row['id'];
-              $user = $conn->query("SELECT u.first_name,u.last_name FROM teachers t JOIN users u ON t.user_id=u.id WHERE t.id='$id'")->fetch_assoc();
-              echo "<tr><td>".$e($user['first_name'].' '.$user['last_name'])."</td><td>".$e($row['user_id'])."</td><td>".$e($row['title'])."</td><td>".$e($row['bio'])."</td><td>".$e($row['image'])."</td></tr>";
-            }
-          ?>
-        </table>
-      </div>
-
     <?php endif; ?>
   <?php else: ?>
     <h1>You do not have access to view this page</h1><a href='logout.php'>Exit</a>
   <?php endif; ?>
 
+
+
 </body>
 </html>
-
