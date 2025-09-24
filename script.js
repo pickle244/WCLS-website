@@ -95,3 +95,38 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
         if (!menu.contains(e.target) && e.target !== btn) menu.style.display = 'none';
       });
     })();
+
+    // Create for next year：
+    (function(){
+      var btnCreate = document.getElementById('btn-create-next');      // Plan menu: “Create for next year”
+      var modal     = document.getElementById('createNextModal');      //  index.php 的小弹窗
+      var closeBtn  = document.getElementById('close-create-next');
+      var goImport  = document.getElementById('goto-next-and-import'); // 弹窗里的“Import CSV”按钮
+
+      if (!btnCreate || !modal) return; // 当前不是 courses_current 时，这些元素不存在，直接跳过
+
+      function open(){ modal.classList.add('is-open'); modal.setAttribute('aria-hidden','false'); }
+      function close(){ modal.classList.remove('is-open'); modal.setAttribute('aria-hidden','true'); }
+
+      btnCreate.addEventListener('click', open);
+      closeBtn && closeBtn.addEventListener('click', close);
+      modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
+
+      // 跨页打开 Import：在 URL 上加 open_import=1，下一页读取这个参数后自动点“Import”
+      if (goImport){
+        goImport.addEventListener('click', function(){
+          var url = new URL(goImport.href, location.origin);
+          url.searchParams.set('open_import', '1');
+          goImport.href = url.toString();
+        });
+      }
+
+      // 若当前页是 courses_next 且 URL 上有 open_import=1，则自动打开导入弹窗
+      (function autoOpenOnNext(){
+        var params = new URLSearchParams(location.search);
+        if (params.get('open_import') === '1'){
+          var openBtn = document.getElementById('open-import');
+          if (openBtn) openBtn.click();
+        }
+      })();
+        })();

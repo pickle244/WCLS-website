@@ -385,6 +385,8 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
         if($insstmt->execute()) $ins++; else $skip++;
       }
       $conn->commit();
+      $_SESSION['flash'] = 'All courses copied from '. $e(year_label($from)) .' to '. $e(year_label($to)) .'.';
+
       // After copy, go to "next year" page to continue editing
       header('Location: '.view_url('courses_next'));
       exit;
@@ -564,6 +566,13 @@ if (($_POST['action'] ?? '') === 'update_course'
 
     <?php elseif ($view === 'courses_current' || $view === 'courses_next'): ?>
 
+      <?php if (!empty($_SESSION['flash'])): ?>
+        <div class="alert success" style="max-width:1100px; margin:10px auto 0;">
+          <?php echo $e($_SESSION['flash']); unset($_SESSION['flash']); ?>
+        </div>
+      <?php endif; ?>
+
+
       <?php
       // Build teacher list once (id => "First Last") for all dropdowns below
       $teachers_all = [];
@@ -596,29 +605,40 @@ if (($_POST['action'] ?? '') === 'update_course'
               <span class="file-badge">Academic Year: <?php echo $e(year_label($working_year)); ?></span>
             </div>
 
-            <div class="row-between" style="gap:8px;">
-              <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'download_template']); ?>">Download Template</a>
-              <button class="btn btn--sm" id="open-import">Import</button>
-              <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'export_year']); ?>">Export CSV</a>
+              <div class="row-between" style="gap:8px;">
+                <?php if ($view==='courses_next'): ?>
+                  <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'download_template']); ?>">Download Template</a>
+                  <button class="btn btn--sm" id="open-import">Import</button>
+                  <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'export_year']); ?>">Export CSV</a>
+                <?php endif; ?>
 
-              <?php if ($view==='courses_current'): ?>
-                <!-- Plan next year: dropdown button with two actions (create/edit next year, copy then go next) -->
-                <div class="dropdown" style="display:inline-block; position:relative;">
-                  <button class="btn btn--sm" id="btn-plan-next">Plan Next Year ▾</button>
-                  <div id="menu-plan-next" style="display:none; position:absolute; right:0; top:36px; background:#fff; border:1px solid #ddd; border-radius:8px; min-width:240px; box-shadow:0 10px 24px rgba(0,0,0,.12); z-index:10;">
-                    <a href="<?php echo view_url('courses_next'); ?>" style="display:block; padding:8px 10px; text-decoration:none; color:#111;">Create / edit courses for next year</a>
-                    <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="margin:0;">
-                      <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
-                      <input type="hidden" name="action" value="copy_to_next_year">
-                      <button type="submit" style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;"
-                        onclick="return confirm('Copy all courses from <?php echo $e(year_label($current_year)); ?> to <?php echo $e(year_label($current_year+1)); ?>?');">
-                        Copy from this year
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              <?php endif; ?>
+                <?php if ($view==='courses_current'): ?>
+                  <!-- only show “Plan Next Year” button -->
+                  <div class="dropdown" style="display:inline-block; position:relative;">
+                    <button class="btn btn--sm" id="btn-plan-next">Plan Next Year ▾</button>
+                    <div id="menu-plan-next" class="menu" style="display:none; position:absolute; right:0; top:36px; background:#fff; border:1px solid #ddd; border-radius:8px; min-width:260px; box-shadow:0 10px 24px rgba(0,0,0,.12); z-index:10;">
+                    <!-- 1) edit when next year -->
+                    <a href="<?php echo view_url('courses_next'); ?>" class="menu-item" style="display:block; padding:8px 10px; text-decoration:none; color:#111;">Edit for next year</a>
+
+                    <!-- 2) Creat for next year  -->
+                    <button type="button" class="menu-item" id="btn-create-next" style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;">
+            Create for next year
+                    </button>
+
+                  <!-- 3) copy current year to next year -->
+                  <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="margin:0;">
+                  <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
+                  <input type="hidden" name="action" value="copy_to_next_year">
+                  <button type="submit" class="menu-item" style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;"
+                    onclick="return confirm('Copy all courses from <?php echo $e(year_label($current_year)); ?> to <?php echo $e(year_label($current_year+1)); ?>?');">
+                    Copy for next year
+                  </button>
+                </form>
+              </div>
             </div>
+          <?php endif; ?>
+        </div>
+
           </div>
 
           <?php if (!empty($courses_msg_html)) echo '<div style="margin-top:8px;">'.$courses_msg_html.'</div>'; ?>
@@ -709,6 +729,30 @@ if (($_POST['action'] ?? '') === 'update_course'
           </div>
         </section>
       </main>
+
+      <!-- ===================== Create Next Year Prompt Modal ===================== -->
+      <div class="modal" id="createNextModal" aria-hidden="true">
+        <div class="modal__dialog">
+          <div class="modal__header">
+            <h4>Create Courses for Next Year</h4>
+            <!-- Cancel button -->
+            <button class="modal__close btn btn--sm btn--light" id="close-create-next">Cancel</button>
+          </div>
+          <div class="modal__body">
+            <p style="margin:4px 0 10px;">Do you want to import a CSV file to upload the courses?</p>
+            <div class="row-between" style="gap:8px; flex-wrap:wrap;">
+              <!-- download template -->
+              <a class="btn btn--sm" href="<?php echo view_url('courses_next', ['action'=>'download_template']); ?>">Download template</a>
+              <!-- Import CSV（rely on JS plus open_import=1 mark） -->
+              <a class="btn btn--sm" id="goto-next-and-import" href="<?php echo view_url('courses_next'); ?>">Import CSV</a>
+              <!-- Edit manually -->
+              <a class="btn btn--sm btn--light" href="<?php echo view_url('courses_next'); ?>">No, edit manually</a>
+            </div>
+          <div class="muted" style="margin-top:10px;">Template headers match the import preview requirements.</div>
+        </div>
+      </div>
+    </div>
+
 
       <!-- ===================== Import Modal ===================== -->
       <div class="modal <?php echo $open_import_modal ? 'is-open' : ''; ?>" id="importModal" aria-hidden="<?php echo $open_import_modal?'false':'true'; ?>">
