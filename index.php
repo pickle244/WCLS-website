@@ -518,18 +518,6 @@ if (($_POST['action'] ?? '') === 'update_course'
 
     <?php if ($view === 'home'): ?>
 
-      <main class="admin-home">
-        <a class="home-card" href="<?php echo view_url('records'); ?>">
-          <div class="home-icon">🛠️</div>
-          <div class="home-title">Edit Records</div>
-          <div class="home-sub">Courses and Teachers</div>
-        </a>
-        <a class="home-card" href="<?php echo view_url('reports'); ?>">
-          <div class="home-icon">📊</div>
-          <div class="home-title">Reports</div>
-          <div class="home-sub">Exports and summaries</div>
-        </a>
-      </main>
 
     <?php elseif ($view === 'records'): ?>
 
