@@ -207,3 +207,61 @@ td.actions{ white-space:nowrap; }
 /* Disabled button state */
 .btn[disabled]{ opacity:.5; cursor:not-allowed; pointer-events:none; }
 
+/* === Courses 页面更宽、更通透的布局 === */
+
+/* 让主内容更宽一点（从 1100 → 1400px）*/
+.admin-main{ max-width:1400px; }
+
+/* 去掉 courses 卡片的边线和过厚的内边距 */
+#course_card.card{
+  border:none;
+  box-shadow:none;
+  background:transparent;
+  padding:0;
+  margin:0; /* 让表格顶到主容器边距，显得更宽 */
+}
+
+/* 表格容器更高，少滚动条；若你想全高度可用 80vh */
+.table-wrap.is-scroll{
+  max-height:70vh;   /* 原 440px */
+  border:none;       /* 少一层边线，更干净 */
+  border-radius:0;
+}
+
+/* 表头固定 + 轻微底影保留 */
+.table thead th{
+  position:sticky; top:0; background:#fff; box-shadow:0 1px 0 #eee;
+}
+
+/* 小屏也别挤 */
+@media (max-width: 640px){
+  .admin-main{ padding-left:12px; padding-right:12px; }
+}
+
+/* === Courses 板块整体白底（导航区域仍保留原背景） === */
+#course_card.card{
+  background:#fff;           /* 恢复白底 */
+  border:1px solid #eee;
+  border-radius:12px;
+  padding:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.08);
+  margin:16px 0;
+}
+
+/* 主体更宽，但仍居中显示（可按需改为 none） */
+.admin-main{ max-width:1400px; }
+
+/* 表格：所有行白底，取消斑马纹 */
+.table tbody td{ background:#fff; }
+.table tbody tr:nth-child(even) td{ background:#fff; } /* 覆盖原有灰色 */
+
+/* 新建/编辑行的淡黄提示仍保留 */
+tr.row-new td, tr.row-edit td{ background:#fff7e6; }
+
+/* 表格容器更高一些，减少滚动条 */
+.table-wrap.is-scroll{
+  max-height:70vh;
+  border:1px solid #eee;      /* 给表格一个轻边线，和白底区分 */
+  border-radius:8px;
+  overflow:auto;
+}

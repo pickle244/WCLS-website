@@ -439,4 +439,18 @@
       echo "Prepare failed: " . mysqli_error($conn);
     }
   }
+
+
+  /**
+ * Print and clear a flash message from $_SESSION['flash'].
+ * Usage (already used in index.php):
+ *   if (!empty($_SESSION['flash'])) { ... }
+ */
+function print_flash(): void {
+  if (!empty($_SESSION['flash'])) {
+    $msg = htmlspecialchars((string)$_SESSION['flash'], ENT_QUOTES, 'UTF-8');
+    echo '<div class="alert success" style="max-width:1100px; margin:10px auto 0;">'.$msg.'</div>';
+    unset($_SESSION['flash']);
+  }
+}
 ?>
