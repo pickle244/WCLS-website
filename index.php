@@ -68,6 +68,24 @@ function assert_year_matches_context_or_die(string $courses_subview, int $submit
   }
 }
 
+/** check if given start_year already has any courses */
+function year_has_courses(mysqli $conn, int $start_year): bool {
+  $sql = "SELECT 1
+          FROM courses c
+          JOIN years y ON y.id = c.year_id
+          WHERE y.start_year = ?
+          LIMIT 1";
+  $stm = $conn->prepare($sql);
+  $stm->bind_param('i',$start_year);
+  $exists = false;
+  if ($stm->execute()) {
+    $stm->store_result();
+    $exists = $stm->num_rows > 0;
+  }
+  $stm->close();
+  return $exists;
+}
+
 
 // ---------------------------------------------------------
 // Teacher helpers
@@ -129,6 +147,11 @@ $courses_subview = in_array($view, ['courses_current','courses_next'], true) ? $
 $working_start_year = working_year_for_courses($courses_subview, $current_start_year);
 $working_year_id = year_id_by_start($conn, $working_start_year);
 
+/* next-year state for menu control */
+$next_start_year = $current_start_year + 1;
+$next_year_id    = year_id_by_start($conn, $next_start_year);
+$next_has_courses = year_has_courses($conn, $next_start_year);
+
 // messages & modal flags
 $courses_msg_html    = '';
 $import_preview_html = '';
@@ -185,7 +208,7 @@ if (($_POST['action'] ?? '') === 'preview_courses'
           $preview_items=[];
           foreach($rows as $r){
             $item=[]; foreach($map as $idx=>$std) $item[$std]=$r[$idx]??'';
-            $item['year'] = $target_start;
+            $item['year'] = $target_start; // lock to working year
             if (array_filter($item, fn($v)=>$v!=='' && $v!==null)) $preview_items[]=$item;
           }
           ob_start();
@@ -295,7 +318,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
           'room_number'=>$clean['room_number'],
           'year_id'=>$target_year_id,
           'term_id'=>$term_id,
-          'program'=>$clean['program'], // not stored separately; for display only if needed
+          'program'=>$clean['program'],
         ];
       }
 
@@ -314,26 +337,6 @@ if (($_POST['action'] ?? '') === 'import_courses'
         $import_result_html = ob_get_clean();
       } else {
         $conn->begin_transaction();
-        try{
-          $stmt=$conn->prepare("INSERT INTO courses
-            (program, course_code, course_name, course_price, course_description,
-             default_capacity, teacher_id, year_id, term_id, room_number)
-            VALUES (?,?,?,?,?,?,?,?,?,?)");
-          if(!$stmt) throw new Exception('DB prepare failed.');
-          $inserted=0;
-          foreach($ok_rows as $r){
-            $stmt->bind_param('sssdsiiii i',
-              $r['program'],$r['course_code'],$r['course_name'],$r['course_price'],$r['course_description'],
-              $r['default_capacity'],$r['teacher_id'],$r['year_id'],$r['term_id'],$r['room_number']
-            );
-            // 修正 bind_param 空格问题：拆成变量
-          }
-        } catch(Throwable $ex) {
-          // 为了避免上面混合 bind 变量的问题，改成逐行准备执行：
-        }
-        // 重新执行逐行插入（避免绑定问题）
-        $conn->rollback();
-        $conn->begin_transaction();
         $inserted=0;
         foreach($ok_rows as $r){
           $stmt=$conn->prepare("INSERT INTO courses
@@ -343,21 +346,6 @@ if (($_POST['action'] ?? '') === 'import_courses'
           $desc = $r['course_description'];
           $cap  = $r['default_capacity'];
           $room = $r['room_number'];
-          $stmt->bind_param('sssdsiiii i', $r['program'],$r['course_code'],$r['course_name'],$r['course_price'],$desc,$cap,$r['teacher_id'],$r['year_id'],$r['term_id'],$room);
-          // 注意：上面 'sssdsiiii i' 中间的空格会导致类型串不对，这里改成无空格版本：
-          $stmt->close();
-          $stmt=$conn->prepare("INSERT INTO courses
-            (program, course_code, course_name, course_price, course_description,
-             default_capacity, teacher_id, year_id, term_id, room_number)
-            VALUES (?,?,?,?,?,?,?,?,?,?)");
-          $stmt->bind_param('sssdsiiii i', $r['program'],$r['course_code'],$r['course_name'],$r['course_price'],$desc,$cap,$r['teacher_id'],$r['year_id'],$r['term_id'],$room);
-          // 再修正：为了完全避免类型串出错，改成正确的：
-          $stmt->close();
-          $stmt=$conn->prepare("INSERT INTO courses
-            (program, course_code, course_name, course_price, course_description,
-             default_capacity, teacher_id, year_id, term_id, room_number)
-            VALUES (?,?,?,?,?,?,?,?,?,?)");
-          // 类型： s s s d s i i i i i
           $stmt->bind_param('sssdsiiiii', $r['program'],$r['course_code'],$r['course_name'],$r['course_price'],$desc,$cap,$r['teacher_id'],$r['year_id'],$r['term_id'],$room);
           if($stmt->execute()) $inserted++;
           $stmt->close();
@@ -376,8 +364,14 @@ if (($_POST['action'] ?? '') === 'import_courses'
 if (($_POST['action'] ?? '') === 'copy_to_next_year'
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
 
-  $from_start = $current_start_year;           // 只允许从当前学年复制
+  $from_start = $current_start_year;
   $to_start   = $current_start_year + 1;
+
+  if (year_has_courses($conn, $to_start)) {
+    $_SESSION['flash'] = 'Next academic year ('. year_label($to_start) .') already has courses. Copy is disabled.';
+    header('Location: '.view_url('courses_current'));
+    exit;
+  }
 
   $from_year_id = year_id_by_start($conn, $from_start);
   $to_year_id   = year_id_by_start($conn, $to_start);
@@ -388,7 +382,6 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
     exit;
   }
 
-  // map (program, term_no) -> term_id (target year)
   $toTermByNo = [];
   $q = $conn->prepare("SELECT id, program, term_no FROM terms WHERE year_id=?");
   $q->bind_param('i',$to_year_id);
@@ -400,7 +393,6 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
   }
   $q->close();
 
-  // load source courses with their term_no/program
   $sql = "SELECT c.*, t.program, t.term_no
           FROM courses c
           JOIN terms t ON t.id = c.term_id
@@ -429,12 +421,10 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
       $new_term_id = $toTermByNo[$key] ?? null;
       if (!$new_term_id){ $miss++; continue; }
 
-      // skip duplicates
       $dup->bind_param('iis',$to_year_id,$new_term_id,$r['course_code']);
       $dup->execute(); $dup->store_result();
       if($dup->num_rows>0){ $skip++; continue; }
 
-      // insert
       $stmt=$conn->prepare("INSERT INTO courses
         (program, course_code, course_name, course_price, course_description,
          default_capacity, teacher_id, year_id, term_id, room_number)
@@ -447,7 +437,7 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
       $stmt->close();
     }
     $conn->commit();
-    $_SESSION['flash'] = "Copied $ins course(s) to ". $e(year_label($to_start)) ." (skipped $skip, missing-term $miss).";
+    $_SESSION['flash'] = "Copied $ins course(s) to ". year_label($to_start) ." (skipped $skip, missing-term $miss).";
     header('Location: '.view_url('courses_next'));
     exit;
   }catch(Throwable $ex){
@@ -474,7 +464,6 @@ if (($_POST['action'] ?? '') === 'publish_year'
     header('Location: '.$_SERVER['REQUEST_URI']); exit;
   }
 
-  // Fetch catalog snapshot with joins
   $sql = "SELECT
             c.id, c.program, c.course_code, c.course_name, c.course_price,
             c.course_description, c.default_capacity, c.room_number,
@@ -520,7 +509,6 @@ if (($_POST['action'] ?? '') === 'publish_year'
   }
   $stm->close();
 
-  // Write JSON file (exports/courses_YYYY.json)
   $dir = __DIR__ . '/exports';
   if (!is_dir($dir)) @mkdir($dir, 0775, true);
   $file = $dir . '/courses_'.$target_start.'.json';
@@ -552,12 +540,11 @@ $dup_exists_edit = function(int $year_id,int $term_id,string $code,?int $exclude
 
 $edit_id = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 
-// Create
+// Create (new row)
 if (($_POST['action'] ?? '') === 'add_course_inline'
     && in_array($view, ['courses_current','courses_next'], true)
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
 
-  // 读取并清洗
   $program = trim($_POST['program'] ?? '');
   $code    = trim($_POST['course_code'] ?? '');
   $name    = trim($_POST['course_name'] ?? '');
@@ -569,11 +556,9 @@ if (($_POST['action'] ?? '') === 'add_course_inline'
   $term_id = (int)($_POST['term_id'] ?? 0);
   $submitted_start = (int)($_POST['year'] ?? $working_start_year);
 
-  // 学年防护
   assert_year_matches_context_or_die($view, $submitted_start, $current_start_year);
   $year_id = year_id_by_start($conn, $submitted_start);
 
-  // 必填与范围
   $missing = [];
   if ($name === '')     $missing[] = 'name';
   if ($code === '')     $missing[] = 'code';
@@ -603,9 +588,7 @@ if (($_POST['action'] ?? '') === 'add_course_inline'
        default_capacity, teacher_id, year_id, term_id, room_number)
       VALUES (?,?,?,?,?,?,?,?,?,?)");
     if($stmt){
-      $stmt->bind_param('sssdsiiiii',
-        $program, $code, $name, $price, $desc, $cap, $tid, $year_id, $term_id, $room
-      );
+      $stmt->bind_param('sssdsiiiii', $program, $code, $name, $price, $desc, $cap, $tid, $year_id, $term_id, $room);
       if($stmt->execute()){
         $courses_msg_html = '<div class="alert success">Course created in <b>'.$e(year_label($submitted_start)).'</b>.</div>';
       } else {
@@ -619,7 +602,7 @@ if (($_POST['action'] ?? '') === 'add_course_inline'
 }
 
 
-// Update
+// Update (edit row)
 if (($_POST['action'] ?? '') === 'update_course'
     && in_array($view, ['courses_current','courses_next'], true)
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
@@ -687,7 +670,6 @@ if (($_POST['action'] ?? '') === 'update_course'
     <?php if ($view === 'home'): ?>
 
       <main class="admin-home">
-        <main class="admin-home">
         <div class="home-card" style="cursor:default;">
           <div class="home-icon"></div>
           <div class="home-title">Welcome</div>
@@ -759,7 +741,7 @@ if (($_POST['action'] ?? '') === 'update_course'
       }
 
       // Load terms for the working year (for Program→Term select)
-      $terms = []; // for <select>
+      $terms = [];
       if ($working_year_id){
         $stm = $conn->prepare("SELECT id, program, term_no, name, display_name FROM terms WHERE year_id=? ORDER BY program, term_no");
         $stm->bind_param('i',$working_year_id);
@@ -784,7 +766,7 @@ if (($_POST['action'] ?? '') === 'update_course'
 
             <div class="row-between" style="gap:8px;">
               <?php if ($view==='courses_next'): ?>
-                <a class="btn btn--sm btn--light" href="<?php echo view_url('courses_current'); ?>">← Back to current year</a>
+                <a class="btn btn--sm" href="<?php echo view_url('courses_current'); ?>">← Back to current year</a>
               <?php endif; ?>
 
               <?php if ($view==='courses_next'): ?>
@@ -794,16 +776,17 @@ if (($_POST['action'] ?? '') === 'update_course'
                   <button class="btn btn--sm">Save &amp; Publish</button>
                 </form>
               <?php else: ?>
+                <!-- 改为与未来学年完全一致的红色实心按钮 -->
                 <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>">
                   <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
                   <input type="hidden" name="action" value="publish_year">
-                  <button class="btn btn--sm btn--light">Save &amp; Publish</button>
+                  <button class="btn btn--sm">Save &amp; Publish</button>
                 </form>
               <?php endif; ?>
             </div>
           </div>
 
-          <!-- Toolbar: left year badge; right: template/import on next-year; Plan menu on current-year -->
+          <!-- Toolbar -->
           <div class="toolbar row-between" style="margin:.5rem 0 0.25rem;">
             <div class="year-switch">
               <span class="file-badge">Academic Year: <?php echo $e(year_label($working_start_year)); ?></span>
@@ -811,19 +794,22 @@ if (($_POST['action'] ?? '') === 'update_course'
 
             <div class="row-between" style="gap:8px;">
               <?php if ($view==='courses_next'): ?>
-                <a class="btn btn--sm" href="<?php echo view_url($view, ['action'=>'download_template']); ?>">Download Template</a>
-                <button type="button" class="btn btn--sm" id="open-import">Import</button>
-
-                <!-- 需求：移除 Export CSV，已删除 -->
+                <!-- 按要求：未来学年页面不再显示 Import（之前也移除了 Download Template） -->
               <?php endif; ?>
 
               <?php if ($view==='courses_current'): ?>
-                <!-- Plan Next Year (only 2 options as requested) -->
                 <div class="dropdown" style="display:inline-block; position:relative;">
                   <button class="btn btn--sm" id="btn-plan-next">Plan Next Year ▾</button>
-                  <div id="menu-plan-next" class="menu" style="display:none; position:absolute; right:0; top:36px; background:#fff; border:1px solid #ddd; border-radius:8px; min-width:260px; box-shadow:0 10px 24px rgba(0,0,0,.12); z-index:10;">
+                  <div id="menu-plan-next" class="menu"
+                       data-next-has="<?php echo $next_has_courses ? '1' : '0'; ?>"
+                       style="display:none; position:absolute; right:0; top:36px; background:#fff; border:1px solid #ddd; border-radius:8px; min-width:280px; box-shadow:0 10px 24px rgba(0,0,0,.12); z-index:10;">
+
                     <!-- Create for next year -->
-                    <button type="button" class="menu-item" id="btn-create-next" style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;">
+                    <button type="button"
+                            id="btn-create-next"
+                            class="menu-item <?php echo $next_has_courses ? 'is-disabled' : ''; ?>"
+                            <?php echo $next_has_courses ? 'aria-disabled="true" tabindex="-1"' : ''; ?>
+                            style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;">
                       Create for next year
                     </button>
 
@@ -831,11 +817,25 @@ if (($_POST['action'] ?? '') === 'update_course'
                     <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="margin:0;" id="copyNextForm">
                       <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
                       <input type="hidden" name="action" value="copy_to_next_year">
-                      <button type="submit" class="menu-item" style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;"
-                        onclick="return confirm('Are you sure you want to copy the current year\\'s courses to the next academic year and save?');">
+                      <button type="submit"
+                              class="menu-item <?php echo $next_has_courses ? 'is-disabled' : ''; ?>"
+                              <?php echo $next_has_courses ? 'disabled aria-disabled="true" tabindex="-1"' : ''; ?>
+                              style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:pointer;">
                         Copy for next year
                       </button>
                     </form>
+
+                    <!-- Edit for next year -->
+                    <a href="<?php echo $next_has_courses ? view_url('courses_next') : 'javascript:void(0)'; ?>"
+                       id="btn-edit-next"
+                       class="menu-item <?php echo $next_has_courses ? '' : 'is-disabled'; ?>"
+                       <?php echo $next_has_courses ? '' : 'aria-disabled="true" tabindex="-1"'; ?>
+                       style="display:block; text-decoration:none; color:inherit; padding:8px 10px;">
+                      Edit for next year
+                      <span class="muted" style="display:block; font-size:12px;">
+                        <?php echo $next_has_courses ? 'Next-year courses exist — go edit' : 'Disabled until next-year is created'; ?>
+                      </span>
+                    </a>
                   </div>
                 </div>
               <?php endif; ?>
@@ -843,6 +843,17 @@ if (($_POST['action'] ?? '') === 'update_course'
           </div>
 
           <?php if (!empty($courses_msg_html)) echo '<div style="margin-top:8px;">'.$courses_msg_html.'</div>'; ?>
+
+          <!-- ===== backing forms OUTSIDE the table ===== -->
+          <?php $newFormId = 'f-new'; ?>
+          <form id="<?php echo $newFormId; ?>" method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>">
+            <input type="hidden" name="action" value="add_course_inline">
+            <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf'] ?? ''); ?>">
+            <input type="hidden" name="year"   value="<?php echo $e($working_start_year); ?>">
+          </form>
+
+          <!-- Shared update form for all edit rows -->
+          <form id="f-update" method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>"></form>
 
           <!-- Editable table -->
           <div class="table-wrap is-scroll" style="margin-top:10px;">
@@ -855,171 +866,124 @@ if (($_POST['action'] ?? '') === 'update_course'
               </thead>
               <tbody>
 
-              
+              <!-- New row -->
+              <tr class="row-new js-row">
+                <td><input class="cell-input" name="course_name" required form="<?php echo $newFormId; ?>"></td>
+                <td><input class="cell-input" name="course_code" required form="<?php echo $newFormId; ?>"></td>
+                <td><input class="cell-input" type="number" name="course_price" step="0.01" min="0.01" required form="<?php echo $newFormId; ?>"></td>
+                <td><input class="cell-input" name="course_description" required form="<?php echo $newFormId; ?>"></td>
+                <td>
+                  <select class="cell-input js-program" name="program" required form="<?php echo $newFormId; ?>">
+                    <option value="">Program</option>
+                    <option value="Sunday">Sunday</option>
+                    <option value="Afterschool">Afterschool</option>
+                  </select>
+                </td>
+                <td>
+                  <select class="cell-input js-term" name="term_id" required form="<?php echo $newFormId; ?>">
+                    <option value="">Select term</option>
+                    <?php foreach($terms as $t): ?>
+                      <option value="<?php echo (int)$t['id']; ?>" data-program="<?php echo $e($t['program']); ?>">
+                        <?php echo $e($t['display_name'] ?: $t['name']); ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td><span class="file-badge"><?php echo $e(year_label($working_start_year)); ?></span></td>
+                <td>
+                  <select class="cell-input" name="teacher_id" required form="<?php echo $newFormId; ?>">
+                    <?php echo render_teacher_options($teachers_all); ?>
+                  </select>
+                </td>
+                <td><input class="cell-input" type="number" name="capacity" placeholder="#" min="1" required form="<?php echo $newFormId; ?>"></td>
+                <td><input class="cell-input" type="number" name="room"     placeholder="#" min="1" required form="<?php echo $newFormId; ?>"></td>
+                <td class="actions"><button class="btn btn--sm" type="submit" form="<?php echo $newFormId; ?>">Add</button></td>
+              </tr>
+
               <?php
-  // 新建行专用表单（隐藏域放这里；行内控件用 form="f-new" 归属到该表单）
-  $newFormId = 'f-new';
-?>
-<form id="<?php echo $newFormId; ?>" method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>">
-  <input type="hidden" name="action" value="add_course_inline">
-  <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf'] ?? ''); ?>">
-  <input type="hidden" name="year"   value="<?php echo $e($working_start_year); ?>">
-</form>
+                if ($working_year_id){
+                  $stmt=$conn->prepare("
+                    SELECT c.*, t.display_name AS term_display, y.start_year,
+                           u.first_name, u.last_name
+                    FROM courses c
+                    JOIN terms t ON t.id=c.term_id
+                    JOIN years y ON y.id=c.year_id
+                    LEFT JOIN teachers te ON te.id=c.teacher_id
+                    LEFT JOIN users u ON u.id=te.user_id
+                    WHERE c.year_id=?
+                    ORDER BY t.program, t.term_no, c.course_code
+                  ");
+                  $stmt->bind_param('i',$working_year_id); $stmt->execute(); $courses=$stmt->get_result();
+                } else {
+                  $courses = false;
+                }
 
-<tr class="row-new js-row">
-  <!-- name -->
-  <td><input class="cell-input" name="course_name" required form="<?php echo $newFormId; ?>"></td>
+                if ($courses) while ($row=$courses->fetch_assoc()){
+                  $id=(int)$row['id']; $teacher_name = trim(($row['first_name']??'').' '.($row['last_name']??''));
+                  $teacher_name = $teacher_name !== '' ? $teacher_name : '#'.$row['teacher_id'];
 
-  <!-- code -->
-  <td><input class="cell-input" name="course_code" required form="<?php echo $newFormId; ?>"></td>
+                  if ($edit_id===$id){
+                    echo '<tr class="row-edit js-row" data-id="'.$id.'">';
 
-  <!-- price -->
-  <td><input class="cell-input" type="number" name="course_price" step="0.01" min="0.01" required form="<?php echo $newFormId; ?>"></td>
+                    echo '<td style="display:none">';
+                    echo   '<input type="hidden" name="action" value="update_course" form="f-update">';
+                    echo   '<input type="hidden" name="csrf"   value="'.$e($_SESSION['csrf'] ?? '').'" form="f-update">';
+                    echo   '<input type="hidden" name="id"     value="'.$id.'" form="f-update">';
+                    echo   '<input type="hidden" name="year"   value="'.$e((int)$row['start_year']).'" form="f-update">';
+                    echo '</td>';
 
-  <!-- description -->
-  <td><input class="cell-input" name="course_description" required form="<?php echo $newFormId; ?>"></td>
+                    echo '<td><input class="cell-input" name="course_name" value="'.$e($row['course_name']).'" required form="f-update"></td>';
+                    echo '<td><input class="cell-input" name="course_code" value="'.$e($row['course_code']).'" required form="f-update"></td>';
+                    echo '<td><input class="cell-input" type="number" name="course_price" step="0.01" min="0.01" value="'.$e($row['course_price']).'" required form="f-update"></td>';
+                    echo '<td><input class="cell-input" name="course_description" value="'.$e($row['course_description']).'" required form="f-update"></td>';
 
-  <!-- program -->
-  <td>
-    <select class="cell-input js-program" name="program" required form="<?php echo $newFormId; ?>">
-      <option value="">Program</option>
-      <option value="Sunday">Sunday</option>
-      <option value="Afterschool">Afterschool</option>
-    </select>
-  </td>
+                    echo '<td><input class="cell-input" name="program" value="'.$e($row['program']).'" required form="f-update"></td>';
 
-  <!-- term -->
-  <td>
-    <select class="cell-input js-term" name="term_id" required form="<?php echo $newFormId; ?>">
-      <option value="">Select term</option>
-      <?php foreach($terms as $t): ?>
-        <option value="<?php echo (int)$t['id']; ?>" data-program="<?php echo $e($t['program']); ?>">
-          <?php echo $e($t['display_name'] ?: $t['name']); ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
-  </td>
+                    echo '<td><select class="cell-input js-term" name="term_id" required form="f-update">';
+                    echo '<option value="">Select term</option>';
+                    foreach($terms as $t){
+                      $sel = ((int)$t['id'] === (int)$row['term_id']) ? ' selected' : '';
+                      echo '<option value="'.$e((int)$t['id']).'" data-program="'.$e($t['program']).'"'.$sel.'>'.$e($t['display_name'] ?: $t['name']).'</option>';
+                    }
+                    echo '</select></td>';
 
-  <!-- year (locked) -->
-  <td><span class="file-badge"><?php echo $e(year_label($working_start_year)); ?></span></td>
+                    echo '<td><span class="file-badge">'.$e(year_label((int)$row['start_year'])).'</span></td>';
 
-  <!-- teacher -->
-  <td>
-    <select class="cell-input" name="teacher_id" required form="<?php echo $newFormId; ?>">
-      <?php echo render_teacher_options($teachers_all); ?>
-    </select>
-  </td>
+                    echo '<td><select class="cell-input" name="teacher_id" required form="f-update">'.render_teacher_options($teachers_all, (int)$row['teacher_id']).'</select></td>';
 
-  <!-- capacity / room -->
-  <td><input class="cell-input" type="number" name="capacity" placeholder="#" min="1" required form="<?php echo $newFormId; ?>"></td>
-  <td><input class="cell-input" type="number" name="room"     placeholder="#" min="1" required form="<?php echo $newFormId; ?>"></td>
+                    echo '<td><input class="cell-input" type="number" name="capacity" value="'.$e($row['default_capacity']).'" min="1" required form="f-update"></td>';
+                    echo '<td><input class="cell-input" type="number" name="room" value="'.$e($row['room_number']).'" min="1" required form="f-update"></td>';
 
-  <!-- actions -->
-  <td class="actions">
-    <button class="btn btn--sm" type="submit" form="<?php echo $newFormId; ?>">Add</button>
-  </td>
-</tr>
+                    $cancel_url = view_url($view);
+                    echo '<td class="actions">';
+                    echo   '<button class="btn btn--sm" type="submit" form="f-update" style="margin-right:6px;">Save</button>';
+                    echo   '<a class="btn btn--sm btn--light" href="'.$e($cancel_url).'">Cancel</a>';
+                    echo '</td>';
 
-
-
-                
-
-                <?php
-                  // List rows for working year
-                  if ($working_year_id){
-                    $stmt=$conn->prepare("
-                      SELECT c.*, t.display_name AS term_display, y.start_year,
-                             u.first_name, u.last_name
-                      FROM courses c
-                      JOIN terms t ON t.id=c.term_id
-                      JOIN years y ON y.id=c.year_id
-                      LEFT JOIN teachers te ON te.id=c.teacher_id
-                      LEFT JOIN users u ON u.id=te.user_id
-                      WHERE c.year_id=?
-                      ORDER BY t.program, t.term_no, c.course_code
-                    ");
-                    $stmt->bind_param('i',$working_year_id); $stmt->execute(); $courses=$stmt->get_result();
-                  } else {
-                    $courses = false;
+                    echo '</tr>';
+                    continue;
                   }
 
-                  if ($courses) while ($row=$courses->fetch_assoc()){
-                    $id=(int)$row['id']; $teacher_name = trim(($row['first_name']??'').' '.($row['last_name']??''));
-                    $teacher_name = $teacher_name !== '' ? $teacher_name : '#'.$row['teacher_id'];
-
-                    if ($edit_id===$id){
-
-  // 1) 该编辑行的独立表单（放隐藏字段）
-  $formId = 'f-row-'.$id;
-  echo '<form id="'.$formId.'" method="post" action="'.$e($_SERVER['REQUEST_URI']).'">';
-  echo   '<input type="hidden" name="action" value="update_course">';
-  echo   '<input type="hidden" name="csrf"   value="'.$e($_SESSION['csrf'] ?? '').'">';
-  echo   '<input type="hidden" name="id"     value="'.$id.'">';
-  echo   '<input type="hidden" name="year"   value="'.$e((int)$row['start_year']).'">';
-  echo '</form>';
-
-  // 2) 表格行（没有 <form>），每个控件用 form="$formId"
-  echo '<tr class="row-edit js-row" data-id="'.$id.'">';
-
-  echo '<td><input class="cell-input" name="course_name" value="'.$e($row['course_name']).'" required form="'.$formId.'"></td>';
-  echo '<td><input class="cell-input" name="course_code" value="'.$e($row['course_code']).'" required form="'.$formId.'"></td>';
-  echo '<td><input class="cell-input" type="number" name="course_price" step="0.01" min="0.01" value="'.$e($row['course_price']).'" required form="'.$formId.'"></td>';
-  echo '<td><input class="cell-input" name="course_description" value="'.$e($row['course_description']).'" required form="'.$formId.'"></td>';
-
-  echo '<td><input class="cell-input" name="program" value="'.$e($row['program']).'" required form="'.$formId.'"></td>';
-
-  // term 下拉
-  echo '<td><select class="cell-input js-term" name="term_id" required form="'.$formId.'">';
-  echo '<option value="">Select term</option>';
-  foreach($terms as $t){
-    $sel = ((int)$t['id'] === (int)$row['term_id']) ? ' selected' : '';
-    echo '<option value="'.$e((int)$t['id']).'" data-program="'.$e($t['program']).'"'.$sel.'>'.$e($t['display_name'] ?: $t['name']).'</option>';
-  }
-  echo '</select></td>';
-
-  echo '<td><span class="file-badge">'.$e(year_label((int)$row['start_year'])).'</span></td>';
-
-  echo '<td><select class="cell-input" name="teacher_id" required form="'.$formId.'">'.render_teacher_options($teachers_all, (int)$row['teacher_id']).'</select></td>';
-
-  echo '<td><input class="cell-input" type="number" name="capacity" value="'.$e($row['default_capacity']).'" min="1" required form="'.$formId.'"></td>';
-  echo '<td><input class="cell-input" type="number" name="room" value="'.$e($row['room_number']).'" min="1" required form="'.$formId.'"></td>';
-
-  $cancel_url = view_url($view);
-  echo '<td class="actions">';
-  echo   '<button class="btn btn--sm" type="submit" form="'.$formId.'" style="margin-right:6px;">Save</button>';
-  echo   '<a class="btn btn--sm btn--light" href="'.$e($cancel_url).'">Cancel</a>';
-  echo '</td>';
-
-  echo '</tr>';
-
-  continue;
-}
-
-
-
-
-                    // Read-only row
-                    $edit_url = view_url($view, ['edit'=>$id]);
-                    echo '<tr data-id="'.$id.'">';
-                    echo '<td>'.$e($row['course_name']).'</td><td>'.$e($row['course_code']).'</td><td>'.$e($row['course_price']).'</td>';
-                    echo '<td>'.$e($row['course_description']).'</td><td>'.$e($row['program']).'</td><td>'.$e($row['term_display']).'</td>';
-                    echo '<td>'.$e(year_label((int)$row['start_year'])).'</td><td>'.$e($teacher_name).'</td><td>'.$e($row['default_capacity']).'</td><td>'.$e($row['room_number']).'</td>';
-                    echo '<td class="actions"><a class="btn btn--sm" href="'.$edit_url.'">Edit</a></td>';
-                  }
-                ?>
+                  $edit_url = view_url($view, ['edit'=>$id]);
+                  echo '<tr data-id="'.$id.'">';
+                  echo '<td>'.$e($row['course_name']).'</td><td>'.$e($row['course_code']).'</td><td>'.$e($row['course_price']).'</td>';
+                  echo '<td>'.$e($row['course_description']).'</td><td>'.$e($row['program']).'</td><td>'.$e($row['term_display']).'</td>';
+                  echo '<td>'.$e(year_label((int)$row['start_year'])).'</td><td>'.$e($teacher_name).'</td><td>'.$e($row['default_capacity']).'</td><td>'.$e($row['room_number']).'</td>';
+                  echo '<td class="actions"><a class="btn btn--sm" href="'.$edit_url.'">Edit</a></td></tr>';
+                }
+              ?>
               </tbody>
             </table>
           </div>
         </section>
       </main>
 
-      <!-- ===================== Create Next Year Prompt Modal ===================== -->
+      <!-- Create Next Year Prompt Modal -->
       <div class="modal" id="createNextModal" aria-hidden="true">
         <div class="modal__dialog">
           <div class="modal__header">
             <h4>Create Courses for Next Year</h4>
             <button type="button" class="modal__close btn btn--sm btn--light" id="close-create-next">Cancel</button>
-
           </div>
           <div class="modal__body">
             <p style="margin:4px 0 10px;">Do you want to import a CSV file to upload the courses?</p>
@@ -1033,14 +997,13 @@ if (($_POST['action'] ?? '') === 'update_course'
         </div>
       </div>
 
-      <!-- ===================== Import Modal ===================== -->
+      <!-- Import Modal -->
       <div class="modal <?php echo $open_import_modal ? 'is-open' : ''; ?>" id="importModal" aria-hidden="<?php echo $open_import_modal?'false':'true'; ?>">
         <div class="modal__dialog">
           <div class="modal__header">
             <h4>Import Courses</h4>
             <button type="button" class="modal__close btn btn--sm btn--light" id="close-import" aria-label="Cancel import">Cancel</button>
           </div>
-
 
           <div class="modal__body">
             <ol class="stepper">

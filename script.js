@@ -17,23 +17,23 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 
 
 /* =========================================================
-   2) Courses: NO row-click editing
+   2) Courses: disable click-to-edit on table cells
    ---------------------------------------------------------
    We intentionally DO NOT attach any click handler on table
-   rows or cells. Editing should ONLY be triggered by the
-   explicit "Edit" button/link in the last column.
+   rows or cells. Editing is allowed only via the "Edit"
+   button in the last column.
    ========================================================= */
-// (Intentionally left blank to avoid row-click-to-edit behavior)
+// (Intentionally empty)
 
 
 /* =========================================================
-   3) Import modal (single-step: choose file -> preview/import)
+   3) Import modal (single-step: choose -> preview/import)
    ========================================================= */
 (function(){
   var modal = document.getElementById('importModal');
   if (!modal) return;
 
-  var closeBtn   = document.getElementById('close-import');
+  var closeBtn   = document.getElementById('close-import');   // <-- must exist
   var chooseBtn  = document.getElementById('btn-import-choose');
   var fileInput  = document.getElementById('import-file');
   var fileBadge  = document.getElementById('import-chosen-file');
@@ -81,7 +81,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
    4) "Plan Next Year" dropdown (current-year page)
    ========================================================= */
 (function(){
-  var btn = document.getElementById('btn-plan-next');
+  var btn  = document.getElementById('btn-plan-next');
   var menu = document.getElementById('menu-plan-next');
   if (!btn || !menu) return;
 
@@ -101,21 +101,27 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
    5) "Create for next year" small modal and auto-open import
    ========================================================= */
 (function(){
-  var btnCreate = document.getElementById('btn-create-next');      // "Plan Next Year" → "Create for next year"
-  var modal     = document.getElementById('createNextModal');      // Small confirmation modal in index.php
+  var btnCreate = document.getElementById('btn-create-next');      // menu: "Create for next year"
+  var modal     = document.getElementById('createNextModal');      // small confirm modal
   var closeBtn  = document.getElementById('close-create-next');
-  var goImport  = document.getElementById('goto-next-and-import'); // Link to next-year page (and open Import)
+  var goImport  = document.getElementById('goto-next-and-import'); // open next page + open Import
 
-  if (!btnCreate || !modal) return; // Not on the courses_current page
+  if (!modal) return;
 
   function open(){ modal.classList.add('is-open'); modal.setAttribute('aria-hidden','false'); }
   function close(){ modal.classList.remove('is-open'); modal.setAttribute('aria-hidden','true'); }
 
-  btnCreate.addEventListener('click', open);
+  if (btnCreate) btnCreate.addEventListener('click', function(e){
+    // 若此按钮被标记为禁用，则不响应（视觉禁用外，再做一次拦截）
+    if (btnCreate.classList.contains('is-disabled') || btnCreate.getAttribute('aria-disabled') === 'true') {
+      e.preventDefault(); e.stopPropagation(); return false;
+    }
+    open();
+  });
   if (closeBtn) closeBtn.addEventListener('click', close);
-  modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
+  if (modal) modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
 
-  // Add a query flag so the next page will auto-open the Import modal
+  // add query so next page auto-opens Import
   if (goImport){
     goImport.addEventListener('click', function(){
       var url = new URL(goImport.href, location.origin);
@@ -124,7 +130,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
     });
   }
 
-  // If we land on the next-year page with ?open_import=1, programmatically click the "Import" button
+  // if landing on next-year page with ?open_import=1, click Import programmatically
   (function autoOpenOnNext(){
     var params = new URLSearchParams(location.search);
     if (params.get('open_import') === '1'){
@@ -138,10 +144,10 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 /* =========================================================
    6) Program → Term dependent selects (bind per row)
    ---------------------------------------------------------
-   Each row has two selects:
+   Each editable row has:
      - .js-program (Program)
      - .js-term    (Term)
-   We filter <option> of term by data-program attribute.
+   We filter <option> in .js-term by the option's data-program.
    ========================================================= */
 (function(){
   function bindRow(row){
@@ -156,7 +162,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
       var hasPlaceholder = opts.length && (opts[0].value === '' || opts[0].disabled);
 
       opts.forEach(function(opt, idx){
-        if (hasPlaceholder && idx === 0) return; // keep the placeholder
+        if (hasPlaceholder && idx === 0) return; // keep placeholder
         var optProg = opt.getAttribute('data-program');
         var match = !p || (optProg === p);
         opt.hidden   = !match;
@@ -164,12 +170,12 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
         if (match) anyVisible = true;
       });
 
-      // Reset selection if the currently selected option is filtered out
+      // Reset if current selection becomes hidden
       if (term.selectedIndex > 0 && term.options[term.selectedIndex].hidden) {
         term.selectedIndex = 0;
       }
 
-      // When no option is available, show a disabled note option
+      // When no options available, show a disabled note option
       var note = term.querySelector('option[data-note="none"]');
       if (!anyVisible) {
         if (!note) {
@@ -186,11 +192,57 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
       }
     }
 
-    // Initial filter + listen to program changes
+    // Init + listen
     filterTerms();
     prog.addEventListener('change', filterTerms);
   }
 
-  // Bind all rows (new row + edit row)
+  // Bind both the "new" row and any "edit" row
   document.querySelectorAll('.js-row').forEach(bindRow);
+})();
+
+
+/* =========================================================
+   7) NEW — Enforce disabled state for Plan Next menu items
+   ---------------------------------------------------------
+   - 对含 .is-disabled / aria-disabled / disabled 的元素，统一拦截点击或提交；
+   - Copy 按钮提交时再做一次防守，避免被强行移除属性；
+   ========================================================= */
+(function(){
+  var menu = document.getElementById('menu-plan-next');
+  if (!menu) return;
+
+  menu.addEventListener('click', function(e){
+    var el = e.target.closest('.menu-item');
+    if (!el) return;
+
+    var isDisabled = el.classList.contains('is-disabled') ||
+                     el.getAttribute('aria-disabled') === 'true' ||
+                     el.hasAttribute('disabled');
+    if (isDisabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+
+    // 仅当可用时，Create 打开引导小弹窗（保险起见再判断一次）
+    if (el.id === 'btn-create-next') {
+      var modal = document.getElementById('createNextModal');
+      if (modal) {
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden','false');
+      }
+    }
+  });
+
+  var copyForm = document.getElementById('copyNextForm');
+  if (copyForm) {
+    copyForm.addEventListener('submit', function(e){
+      var btn = copyForm.querySelector('button[type="submit"]');
+      if (btn && (btn.classList.contains('is-disabled') || btn.disabled)) {
+        e.preventDefault();
+        return false;
+      }
+    });
+  }
 })();
