@@ -112,7 +112,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
   function close(){ modal.classList.remove('is-open'); modal.setAttribute('aria-hidden','true'); }
 
   if (btnCreate) btnCreate.addEventListener('click', function(e){
-    // 若此按钮被标记为禁用，则不响应（视觉禁用外，再做一次拦截）
+    // if visually disabled, block again here
     if (btnCreate.classList.contains('is-disabled') || btnCreate.getAttribute('aria-disabled') === 'true') {
       e.preventDefault(); e.stopPropagation(); return false;
     }
@@ -203,10 +203,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 
 
 /* =========================================================
-   7) NEW — Enforce disabled state for Plan Next menu items
-   ---------------------------------------------------------
-   - 对含 .is-disabled / aria-disabled / disabled 的元素，统一拦截点击或提交；
-   - Copy 按钮提交时再做一次防守，避免被强行移除属性；
+   7) Enforce disabled state for Plan Next menu items
    ========================================================= */
 (function(){
   var menu = document.getElementById('menu-plan-next');
@@ -225,7 +222,6 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
       return false;
     }
 
-    // 仅当可用时，Create 打开引导小弹窗（保险起见再判断一次）
     if (el.id === 'btn-create-next') {
       var modal = document.getElementById('createNextModal');
       if (modal) {
@@ -245,4 +241,32 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
       }
     });
   }
+})();
+
+
+/* =========================================================
+   8) Generic "copy to clipboard" for buttons with data-copy-target
+   ---------------------------------------------------------
+   Keep logic minimal and self-contained to avoid surprises.
+   ========================================================= */
+(function(){
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-copy-target]');
+    if (!btn) return;
+    var sel = btn.getAttribute('data-copy-target');
+    var inp = document.querySelector(sel);
+    if (!inp) return;
+
+    try{
+      inp.select(); inp.setSelectionRange(0, 99999);
+      var ok = document.execCommand('copy');
+      if (!ok && navigator.clipboard) {
+        navigator.clipboard.writeText(inp.value || '');
+      }
+      btn.textContent = 'Copied';
+      setTimeout(function(){ btn.textContent = 'Copy'; }, 1400);
+    }catch(err){
+      // do nothing; keep UI calm
+    }
+  });
 })();

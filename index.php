@@ -70,7 +70,7 @@ function assert_year_matches_context_or_die(string $courses_subview, int $submit
 
 
 // ---------------------------------------------------------
-// Teacher helpers
+// Teacher helpers (dropdown renderer)
 // ---------------------------------------------------------
 if (!function_exists('render_teacher_options')) {
   function render_teacher_options(array $teachers, $selected_id = null): string {
@@ -134,6 +134,213 @@ $courses_msg_html    = '';
 $import_preview_html = '';
 $import_result_html  = '';
 $open_import_modal   = false;
+
+
+// =========================================================
+// ======= Admin → Teachers page: create/edit handlers =====
+// =========================================================
+
+$teachers_msg_html = '';
+$teacher_edit_id   = isset($_GET['edit_teacher']) ? (int)$_GET['edit_teacher'] : 0;
+
+/**
+ * Basic email existence check in users table.
+ * Note: enforce unique email at app layer to avoid surprises.
+ */
+function users_email_exists(mysqli $conn, string $email, ?int $exclude_user_id=null): bool {
+  $sql = "SELECT id FROM users WHERE email=?";
+  if ($exclude_user_id) $sql .= " AND id<>?";
+  $stm = $conn->prepare($sql);
+  if ($exclude_user_id) { $stm->bind_param('si', $email, $exclude_user_id); }
+  else { $stm->bind_param('s', $email); }
+  $ok = $stm->execute();
+  if (!$ok) { $stm->close(); return true; }
+  $stm->store_result();
+  $exists = $stm->num_rows > 0;
+  $stm->close();
+  return $exists;
+}
+
+/**
+ * Generate a readable random password.
+ * - Length 12: mixed case + digits, avoid ambiguous characters.
+ */
+function gen_initial_password(int $len=12): string {
+  $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  $out=''; for($i=0;$i<$len;$i++){ $out .= $alphabet[random_int(0, strlen($alphabet)-1)]; }
+  return $out;
+}
+
+// Handle: add new teacher
+if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+
+  // Read + trim
+  $fn   = trim($_POST['first_name'] ?? '');
+  $ln   = trim($_POST['last_name']  ?? '');
+  $em   = trim($_POST['email']      ?? '');
+  $title= trim($_POST['title']      ?? '');
+  $bio  = trim($_POST['bio']        ?? '');
+  $img  = trim($_POST['image']      ?? '');
+  $notify = isset($_POST['notify']) && $_POST['notify']=='1';
+
+  // Minimal required checks
+  $err=[];
+  if ($fn==='')   $err[]='first name';
+  if ($ln==='')   $err[]='last name';
+  if ($em==='')   $err[]='email';
+  if (!filter_var($em, FILTER_VALIDATE_EMAIL)) $err[]='valid email';
+  if (users_email_exists($conn, $em, null)) $err[]='email already exists';
+
+  if ($err){
+    $teachers_msg_html = '<div class="alert danger">Please fill: '. $e(implode(', ', $err)) .'</div>';
+  } else {
+    $pwd_plain = gen_initial_password(12);
+    $pwd_hash  = password_hash($pwd_plain, PASSWORD_DEFAULT);
+
+    $conn->begin_transaction();
+    try{
+      // Insert into users
+      $stmt = $conn->prepare("INSERT INTO users (first_name,last_name,email,password,account_type) VALUES (?,?,?,?, 'Teacher')");
+      $stmt->bind_param('ssss', $fn,$ln,$em,$pwd_hash);
+      if(!$stmt->execute()){ throw new Exception('users insert failed'); }
+      $user_id = (int)$stmt->insert_id;
+      $stmt->close();
+
+      // Insert into teachers
+      $stmt2 = $conn->prepare("INSERT INTO teachers (user_id, title, bio, image) VALUES (?,?,?,?)");
+      $stmt2->bind_param('isss', $user_id,$title,$bio,$img);
+      if(!$stmt2->execute()){ throw new Exception('teachers insert failed'); }
+      $teacher_id = (int)$stmt2->insert_id;
+      $stmt2->close();
+
+      $conn->commit();
+
+      // Put the freshly generated pwd into session flash so we can show + copy
+      $_SESSION['flash_teacher_pwd'] = [
+        'name'  => trim($fn.' '.$ln),
+        'email' => $em,
+        'pwd'   => $pwd_plain,
+        'id'    => $teacher_id,
+      ];
+
+      // Send email if requested (best effort; do not fail UX)
+      if ($notify) {
+        require_once __DIR__ . '/script.php'; // contains send_teacher_welcome()
+        if (function_exists('send_teacher_welcome')) {
+          // If you have a canonical login URL, put it here:
+          $login_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://')
+                       . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/login.php';
+          send_teacher_welcome($em, trim($fn.' '.$ln), $pwd_plain, $login_url);
+        }
+      }
+
+      $teachers_msg_html = '<div class="alert success">Teacher created.</div>';
+      header('Location: '.view_url('teachers')); exit;
+
+    } catch(Throwable $ex){
+      $conn->rollback();
+      $teachers_msg_html = '<div class="alert danger">Create failed.</div>';
+    }
+  }
+}
+
+// Handle: update teacher basic fields
+if (($view==='teachers') && (($_POST['action'] ?? '') === 'update_teacher') && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+  $tid = (int)($_POST['teacher_id'] ?? 0);
+  $uid = (int)($_POST['user_id']    ?? 0);
+  $fn  = trim($_POST['first_name']  ?? '');
+  $ln  = trim($_POST['last_name']   ?? '');
+  $em  = trim($_POST['email']       ?? '');
+  $title=trim($_POST['title']       ?? '');
+  $bio  = trim($_POST['bio']        ?? '');
+  $img  = trim($_POST['image']      ?? '');
+
+  $err=[];
+  if ($tid<=0 || $uid<=0) $err[]='invalid id';
+  if ($fn==='') $err[]='first name';
+  if ($ln==='') $err[]='last name';
+  if ($em==='' || !filter_var($em, FILTER_VALIDATE_EMAIL)) $err[]='valid email';
+  if (users_email_exists($conn, $em, $uid)) $err[]='email already exists';
+
+  if ($err){
+    $teachers_msg_html = '<div class="alert danger">Please fix: '. $e(implode(', ', $err)) .'</div>';
+    $teacher_edit_id = $tid;
+  } else {
+    $conn->begin_transaction();
+    try{
+      // Update users (basic identity + email)
+      $u = $conn->prepare("UPDATE users SET first_name=?, last_name=?, email=? WHERE id=?");
+      $u->bind_param('sssi', $fn,$ln,$em,$uid);
+      if(!$u->execute()) throw new Exception('users update failed');
+      $u->close();
+
+      // Update teachers (profile fields)
+      $t = $conn->prepare("UPDATE teachers SET title=?, bio=?, image=? WHERE id=?");
+      $t->bind_param('sssi', $title,$bio,$img,$tid);
+      if(!$t->execute()) throw new Exception('teachers update failed');
+      $t->close();
+
+      $conn->commit();
+      $teachers_msg_html = '<div class="alert success">Teacher updated.</div>';
+      $teacher_edit_id = 0;
+      header('Location: '.view_url('teachers')); exit;
+
+    } catch(Throwable $ex){
+      $conn->rollback();
+      $teachers_msg_html = '<div class="alert danger">Update failed.</div>';
+      $teacher_edit_id = $tid;
+    }
+  }
+}
+
+// Handle: reset password
+if (($view==='teachers') && (($_POST['action'] ?? '') === 'reset_teacher_password') && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+  $uid = (int)($_POST['user_id'] ?? 0);
+  $tid = (int)($_POST['teacher_id'] ?? 0);
+  $notify = isset($_POST['notify']) && $_POST['notify']=='1';
+
+  // Fetch display name + email
+  $row = null;
+  if ($uid>0){
+    $stm = $conn->prepare("SELECT first_name,last_name,email FROM users WHERE id=? LIMIT 1");
+    $stm->bind_param('i',$uid);
+    if($stm->execute()){ $rs=$stm->get_result(); $row=$rs->fetch_assoc(); }
+    $stm->close();
+  }
+
+  if (!$row){
+    $teachers_msg_html = '<div class="alert danger">Reset failed (user not found).</div>';
+    $teacher_edit_id = $tid;
+  } else {
+    $pwd_plain = gen_initial_password(12);
+    $pwd_hash  = password_hash($pwd_plain, PASSWORD_DEFAULT);
+
+    $u = $conn->prepare("UPDATE users SET password=? WHERE id=?");
+    $u->bind_param('si', $pwd_hash, $uid);
+    if($u->execute()){
+      $_SESSION['flash_teacher_pwd'] = [
+        'name'  => trim(($row['first_name']??'').' '.($row['last_name']??'')),
+        'email' => $row['email'],
+        'pwd'   => $pwd_plain,
+        'id'    => $tid,
+      ];
+      // optional email
+      if ($notify) {
+        require_once __DIR__ . '/script.php';
+        if (function_exists('send_teacher_welcome')) {
+          $login_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://')
+                       . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/login.php';
+          send_teacher_welcome($row['email'], $_SESSION['flash_teacher_pwd']['name'], $pwd_plain, $login_url);
+        }
+      }
+      $teachers_msg_html = '<div class="alert success">Password reset.</div>';
+      header('Location: '.view_url('teachers', ['edit_teacher'=>$tid])); exit;
+    } else {
+      $teachers_msg_html = '<div class="alert danger">Password reset failed.</div>';
+      $teacher_edit_id = $tid;
+    }
+  }
+}
 
 
 // ---------------------------------------------------------
@@ -295,7 +502,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
           'room_number'=>$clean['room_number'],
           'year_id'=>$target_year_id,
           'term_id'=>$term_id,
-          'program'=>$clean['program'], // not stored separately; for display only if needed
+          'program'=>$clean['program'], // for display only
         ];
       }
 
@@ -314,7 +521,6 @@ if (($_POST['action'] ?? '') === 'import_courses'
         $import_result_html = ob_get_clean();
       } else {
         $conn->begin_transaction();
-        // simple, correct batch insert
         $inserted=0;
         foreach($ok_rows as $r){
           $stmt=$conn->prepare("INSERT INTO courses
@@ -342,7 +548,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
 if (($_POST['action'] ?? '') === 'copy_to_next_year'
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
 
-  $from_start = $current_start_year; // copy only from current
+  $from_start = $current_start_year; // only copy from current
   $to_start   = $current_start_year + 1;
 
   $from_year_id = year_id_by_start($conn, $from_start);
@@ -441,10 +647,12 @@ if (($_POST['action'] ?? '') === 'publish_year'
   }
 
   // Fetch catalog snapshot with joins
+  // Note: terms has no `display_name`; compute a friendly label from `name` or fallback
   $sql = "SELECT
             c.id, c.program, c.course_code, c.course_name, c.course_price,
             c.course_description, c.default_capacity, c.room_number,
-            t.id AS term_id, t.program AS term_program, t.term_no, t.name AS term_name, t.display_name AS term_display_name,
+            t.id AS term_id, t.program AS term_program, t.term_no, t.name AS term_name,
+            COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) AS term_display_name,
             y.start_year, y.label,
             u.first_name AS teacher_first, u.last_name AS teacher_last
           FROM courses c
@@ -501,7 +709,7 @@ if (($_POST['action'] ?? '') === 'publish_year'
 
 
 // ---------------------------------------------------------
-// Inline create / update (use year_id/term_id)
+// Inline create / update (use year_id/term_id) — Courses
 // ---------------------------------------------------------
 $teacher_exists = function(int $tid) use ($conn): bool {
   $stmt=$conn->prepare("SELECT 1 FROM teachers WHERE id=?"); if(!$stmt) return false;
@@ -581,7 +789,6 @@ if (($_POST['action'] ?? '') === 'add_course_inline'
     }
   }
 }
-
 
 // Update (edit row)
 if (($_POST['action'] ?? '') === 'update_course'
@@ -684,8 +891,9 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
   fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
   fputcsv($out, ['Program','Code','Name','Price','Term','Teacher','Year','Capacity','Room','Description']);
 
+  // Note: compute term display from name or fallback to "Term {term_no}"
   $sql = "SELECT c.program, c.course_code, c.course_name, c.course_price,
-                 t.display_name AS term_disp, y.label,
+                 COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) AS term_disp, y.label,
                  u.first_name AS tfn, u.last_name AS tln,
                  c.default_capacity, c.room_number, c.course_description
           FROM courses c
@@ -697,7 +905,8 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
   $params = [$year_id]; $types='i';
   if ($q !== '') {
     $sql .= " AND (c.course_code LIKE ? OR c.course_name LIKE ? OR c.program LIKE ?
-                 OR t.display_name LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)";
+                 OR COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) LIKE ?
+                 OR u.first_name LIKE ? OR u.last_name LIKE ?)";
     $like='%'.$q.'%';
     array_push($params,$like,$like,$like,$like,$like,$like);
     $types.='ssssss';
@@ -744,7 +953,7 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
 
     <?php if ($view === 'home'): ?>
 
-      <!-- Single main wrapper (the duplicate was removed) -->
+      <!-- Home welcome card -->
       <main class="admin-home">
         <div class="home-card" style="cursor:default;">
           <div class="home-icon"></div>
@@ -769,26 +978,140 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
       </main>
 
     <?php elseif ($view === 'teachers'): ?>
+      <main class="admin-main">
+        <section class="card" id="teacher_card">
+          <div class="row-between">
+            <div>
+              <h3 class="card-title" style="margin:0;">Teachers</h3>
+              <div class="card-sub">Create and manage teacher accounts</div>
+            </div>
+            <div class="row-between" style="gap:8px;">
+              <a class="btn btn--sm" href="<?php echo view_url('records'); ?>">← Back</a>
+            </div>
+          </div>
 
-      <div class="container" id="teacher_list">
-        <h1>Teachers</h1>
-        <table class="table">
-          <tr><th>name</th><th>user id</th><th>title</th><th>bio</th><th>image</th></tr>
           <?php
-            $teachers = $conn->query("SELECT * FROM teachers");
-            if ($teachers) while ($row=$teachers->fetch_assoc()){
-              $id=$row['id'];
-              $user = $conn->query("SELECT u.first_name,u.last_name FROM teachers t JOIN users u ON t.user_id=u.id WHERE t.id='$id'")->fetch_assoc();
-              echo "<tr><td>".$e($user['first_name'].' '.$user['last_name'])."</td><td>".$e($row['user_id'])."</td><td>".$e($row['title'])."</td><td>".$e($row['bio'])."</td><td>".$e($row['image'])."</td></tr>";
-            }
+            // one-time display of freshly generated password after create / reset
+            if (!empty($_SESSION['flash_teacher_pwd'])):
+              $fp = $_SESSION['flash_teacher_pwd'];
+              unset($_SESSION['flash_teacher_pwd']);
           ?>
-        </table>
-      </div>
+            <div class="alert info">
+              <div><b>Initial password generated</b> for <?php echo $e($fp['name']); ?> &lt;<?php echo $e($fp['email']); ?>&gt;</div>
+              <div class="pwd-copy">
+                <input id="pwd-copy-input" type="text" readonly value="<?php echo $e($fp['pwd']); ?>">
+                <button class="btn btn--sm btn--light" data-copy-target="#pwd-copy-input">Copy</button>
+              </div>
+              <div class="muted" style="margin-top:6px;">Share securely and recommend the teacher to change password after first login.</div>
+            </div>
+          <?php endif; ?>
+
+          <?php if (!empty($teachers_msg_html)) echo '<div style="margin-top:8px;">'.$teachers_msg_html.'</div>'; ?>
+
+          <!-- Add new teacher form (top row) -->
+          <?php $f_new='f-teacher-new'; ?>
+          <form id="<?php echo $f_new; ?>" method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>"></form>
+
+          <div class="table-wrap is-scroll" style="margin-top:10px;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>first</th><th>last</th><th>email</th><th>title</th><th>bio</th><th>image</th><th style="width:230px;">actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- New row -->
+                <tr class="row-new js-row">
+                  <td><input class="cell-input" name="first_name" form="<?php echo $f_new; ?>" required></td>
+                  <td><input class="cell-input" name="last_name"  form="<?php echo $f_new; ?>" required></td>
+                  <td><input class="cell-input" type="email" name="email" form="<?php echo $f_new; ?>" required></td>
+                  <td><input class="cell-input" name="title" form="<?php echo $f_new; ?>"></td>
+                  <td><input class="cell-input" name="bio"   form="<?php echo $f_new; ?>"></td>
+                  <td><input class="cell-input" name="image" form="<?php echo $f_new; ?>" placeholder="https://..."></td>
+                  <td class="actions">
+                    <input type="hidden" name="action" value="add_teacher" form="<?php echo $f_new; ?>">
+                    <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf']); ?>" form="<?php echo $f_new; ?>">
+                    <label class="inline-checkbox"><input type="checkbox" name="notify" value="1" form="<?php echo $f_new; ?>"> email notify</label>
+                    <button class="btn btn--sm" type="submit" form="<?php echo $f_new; ?>">Add</button>
+                  </td>
+                </tr>
+
+                <?php
+                  // Load existing teachers with users data
+                  $rows = $conn->query("
+                    SELECT t.id AS tid, t.title, t.bio, t.image,
+                           u.id AS uid, u.first_name, u.last_name, u.email
+                    FROM teachers t
+                    JOIN users u ON u.id = t.user_id
+                    ORDER BY u.first_name, u.last_name
+                  ");
+                  if ($rows && $rows->num_rows>0):
+                    while($r=$rows->fetch_assoc()):
+                      $tid=(int)$r['tid']; $uid=(int)$r['uid'];
+                      $is_edit = ($teacher_edit_id === $tid);
+                      if ($is_edit):
+                        $f_up = 'f-teacher-up-'.$tid;
+                ?>
+                  <!-- Edit row -->
+                  <tr class="row-edit js-row">
+                    <td style="display:none;">
+                      <form id="<?php echo $f_up; ?>" method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>"></form>
+                      <input type="hidden" name="action" value="update_teacher" form="<?php echo $f_up; ?>">
+                      <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf']); ?>" form="<?php echo $f_up; ?>">
+                      <input type="hidden" name="teacher_id" value="<?php echo $tid; ?>" form="<?php echo $f_up; ?>">
+                      <input type="hidden" name="user_id"    value="<?php echo $uid; ?>" form="<?php echo $f_up; ?>">
+                    </td>
+                    <td><input class="cell-input" name="first_name" value="<?php echo $e($r['first_name']); ?>" form="<?php echo $f_up; ?>" required></td>
+                    <td><input class="cell-input" name="last_name"  value="<?php echo $e($r['last_name']);  ?>" form="<?php echo $f_up; ?>" required></td>
+                    <td><input class="cell-input" type="email" name="email" value="<?php echo $e($r['email']); ?>" form="<?php echo $f_up; ?>" required></td>
+                    <td><input class="cell-input" name="title" value="<?php echo $e($r['title']); ?>" form="<?php echo $f_up; ?>"></td>
+                    <td><input class="cell-input" name="bio"   value="<?php echo $e($r['bio']);   ?>" form="<?php echo $f_up; ?>"></td>
+                    <td>
+                      <input class="cell-input" name="image" value="<?php echo $e($r['image']); ?>" form="<?php echo $f_up; ?>">
+                      <div class="actions" style="margin-top:6px;">
+                        <button class="btn btn--sm" type="submit" form="<?php echo $f_up; ?>" style="margin-right:6px;">Save</button>
+                        <a class="btn btn--sm btn--light" href="<?php echo $e(view_url('teachers')); ?>">Cancel</a>
+                      </div>
+                      <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="margin-top:8px;">
+                        <input type="hidden" name="action" value="reset_teacher_password">
+                        <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf']); ?>">
+                        <input type="hidden" name="teacher_id" value="<?php echo $tid; ?>">
+                        <input type="hidden" name="user_id"    value="<?php echo $uid; ?>">
+                        <label class="inline-checkbox"><input type="checkbox" name="notify" value="1"> email notify</label>
+                        <button class="btn btn--sm btn--light" type="submit">Reset Password</button>
+                      </form>
+                    </td>
+                  </tr>
+                <?php
+                      else:
+                        $edit_url = view_url('teachers', ['edit_teacher'=>$tid]);
+                ?>
+                  <!-- Read-only row -->
+                  <tr>
+                    <td><?php echo $e($r['first_name']); ?></td>
+                    <td><?php echo $e($r['last_name']);  ?></td>
+                    <td><?php echo $e($r['email']);      ?></td>
+                    <td><?php echo $e($r['title']);      ?></td>
+                    <td><?php echo $e($r['bio']);        ?></td>
+                    <td><?php echo $e($r['image']);      ?></td>
+                    <td class="actions"><a class="btn btn--sm" href="<?php echo $edit_url; ?>">Edit</a></td>
+                  </tr>
+                <?php
+                      endif;
+                    endwhile;
+                  else:
+                ?>
+                  <tr><td colspan="7">No teachers.</td></tr>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
 
     <?php elseif ($view === 'reports'): ?>
 
       <main class="admin-home">
-        <!-- 三个独立的报表入口卡片 -->
         <a class="home-card" href="<?php echo view_url('reports_students'); ?>">
           <div class="home-icon">👨‍🎓</div>
           <div class="home-title">Students Report</div>
@@ -816,7 +1139,7 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
             </div>
           </div>
 
-          <!-- 工具条（搜索、导出） -->
+          <!-- Search + export toolbar -->
           <form method="get" class="toolbar" style="margin-top:12px; gap:8px;">
             <input type="hidden" name="view" value="reports_students">
             <input class="cell-input" type="text" name="q" value="<?php echo $e($_GET['q'] ?? ''); ?>" placeholder="Search student / parent / email / mobile / city / zip" style="min-width:260px;">
@@ -826,7 +1149,7 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
           </form>
 
           <?php
-          // 查询学生 + 家庭 + 家长
+          // Query students + families + parents
           $q = trim($_GET['q'] ?? '');
           $sql = "SELECT s.id, s.first_name AS sfn, s.last_name AS sln, s.DOB,
                          u.first_name AS pfn, u.last_name AS pln, u.email,
@@ -903,17 +1226,18 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
             $year_id_for_report = year_id_by_start($conn, $selected_year);
           ?>
 
-          <!-- 工具条（学年选择、搜索、导出） -->
+          <!-- Toolbar (year select / search / export) -->
           <form method="get" class="toolbar" style="margin-top:12px; gap:8px;">
             <input type="hidden" name="view" value="reports_courses">
             <select class="year-select" name="year">
               <?php
                 $yy = $conn->query("SELECT start_year FROM years ORDER BY start_year");
                 if($yy) while($yr=$yy->fetch_assoc()){
-                  $sy=(int)$yr['start_year']; $sel = $sy===$selected_year?' selected':'';
-                  echo '<option value="'.$e($sy).'"'.$sel.'>'.$e(year_label($sy)).'</option>';
-                }
-              ?>
+                  $sy=(int)$yr['start_year']; $sel = $sy===$selected_year?' selected':''; ?>
+                  <option value="<?php echo $e($sy); ?>"<?php echo $sel; ?>>
+                    <?php echo $e(year_label($sy)); ?>
+                  </option>
+              <?php } ?>
             </select>
             <input class="cell-input" type="text" name="q" value="<?php echo $e($_GET['q'] ?? ''); ?>" placeholder="Search code / name / program / term / teacher" style="min-width:260px;">
             <button class="btn btn--sm" type="submit">Search</button>
@@ -922,9 +1246,11 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
           </form>
 
           <?php
+            // Note: terms has no display_name; compute friendly label
             $q = trim($_GET['q'] ?? '');
             $sql = "SELECT c.program, c.course_code, c.course_name, c.course_price,
-                           t.display_name AS term_disp, t.program AS tprog, t.term_no,
+                           COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) AS term_disp,
+                           t.program AS tprog, t.term_no,
                            y.label,
                            u.first_name AS tfn, u.last_name AS tln,
                            c.default_capacity, c.room_number, c.course_description
@@ -937,7 +1263,8 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
             $params = [$year_id_for_report]; $types='i';
             if ($q !== '') {
               $sql .= " AND (c.course_code LIKE ? OR c.course_name LIKE ? OR c.program LIKE ?
-                           OR t.display_name LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)";
+                           OR COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) LIKE ?
+                           OR u.first_name LIKE ? OR u.last_name LIKE ?)";
               $like='%'.$q.'%';
               array_push($params,$like,$like,$like,$like,$like,$like);
               $types.='ssssss';
@@ -995,7 +1322,6 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
             </div>
           </div>
 
-          
           <div class="admin-home" style="margin-top:16px;">
             <a class="home-card" style="cursor:default;">
               <div class="home-icon">💳</div>
@@ -1012,82 +1338,6 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
           </div>
         </section>
       </main>
-
-    <?php elseif ($view === 'reports'): /* already handled above, kept for clarity */ ?>
-
-    <?php elseif ($view === 'teachers'): /* already handled above */ ?>
-
-    <?php elseif ($view === 'reports'): /* already handled above */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* no-op */ ?>
-
-    <?php elseif ($view === 'reports'): /* end */ ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
-
-    <?php elseif ($view === 'reports'): ?>
 
     <?php elseif ($view === 'courses_current' || $view === 'courses_next'): ?>
 
@@ -1110,10 +1360,11 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
         $teachers_all[(int)$r['id']] = trim($r['first_name'].' '.$r['last_name']);
       }
 
-      // Load terms for the working year (for Program→Term select)
-      $terms = []; // for <select>
+      // Load terms for the working year (Program→Term select)
+      // Note: `terms` has no display_name; select only existing columns
+      $terms = [];
       if ($working_year_id){
-        $stm = $conn->prepare("SELECT id, program, term_no, name, display_name FROM terms WHERE year_id=? ORDER BY program, term_no");
+        $stm = $conn->prepare("SELECT id, program, term_no, name FROM terms WHERE year_id=? ORDER BY program, term_no");
         $stm->bind_param('i',$working_year_id);
         if ($stm->execute()){
           $rs=$stm->get_result();
@@ -1152,19 +1403,12 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
                 <a class="btn btn--sm" href="<?php echo view_url('courses_current'); ?>">← Back to current year</a>
               <?php endif; ?>
 
-              <?php if ($view==='courses_next'): ?>
-                <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" onsubmit="return true;">
-                  <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
-                  <input type="hidden" name="action" value="publish_year">
-                  <button class="btn btn--sm">Save &amp; Publish</button>
-                </form>
-              <?php else: ?>
-                <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>">
-                  <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
-                  <input type="hidden" name="action" value="publish_year">
-                  <button class="btn btn--sm">Save &amp; Publish</button>
-                </form>
-              <?php endif; ?>
+              <!-- Save & Publish button -->
+              <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>">
+                <input type="hidden" name="csrf" value="<?php echo $e($_SESSION['csrf']); ?>">
+                <input type="hidden" name="action" value="publish_year">
+                <button class="btn btn--sm">Save &amp; Publish</button>
+              </form>
             </div>
           </div>
 
@@ -1175,15 +1419,11 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
             </div>
 
             <div class="row-between" style="gap:8px;">
-              <?php if ($view==='courses_next'): ?>
-                <!-- 依你前面要求，这里不再显示 Download Template / Import 按钮 -->
-              <?php endif; ?>
-
               <?php if ($view==='courses_current'): ?>
+                <!-- Plan Next Year dropdown -->
                 <div class="dropdown" style="display:inline-block; position:relative;">
                   <button class="btn btn--sm" id="btn-plan-next">Plan Next Year ▾</button>
                   <div id="menu-plan-next" class="menu" style="display:none; position:absolute; right:0; top:36px; background:#fff; border:1px solid #ddd; border-radius:8px; min-width:260px; box-shadow:0 10px 24px rgba(0,0,0,.12); z-index:10;">
-                    <!-- 只有当“下一学年尚无课程”时，Create/Copy 有效；否则禁用 -->
                     <button type="button" class="menu-item" id="btn-create-next"
                       style="display:block; width:100%; text-align:left; background:#fff; border:0; padding:8px 10px; cursor:<?php echo $next_has_courses?'not-allowed':'pointer'; ?>; opacity:<?php echo $next_has_courses?'.45':'1'; ?>;"
                       <?php echo $next_has_courses ? 'disabled' : ''; ?>>
@@ -1253,8 +1493,12 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
                   <select class="cell-input js-term" name="term_id" required form="<?php echo $newFormId; ?>">
                     <option value="">Select term</option>
                     <?php foreach($terms as $t): ?>
+                      <?php
+                        // Prefer the DB name; fallback to "Term {term_no}" if empty
+                        $label = ($t['name'] !== '' && $t['name'] !== null) ? $t['name'] : ('Term '.$t['term_no']);
+                      ?>
                       <option value="<?php echo (int)$t['id']; ?>" data-program="<?php echo $e($t['program']); ?>">
-                        <?php echo $e($t['display_name'] ?: $t['name']); ?>
+                        <?php echo $e($label); ?>
                       </option>
                     <?php endforeach; ?>
                   </select>
@@ -1273,8 +1517,11 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
               <?php
                 // List rows for working year
                 if ($working_year_id){
+                  // Note: compute a friendly term label; no `display_name` in DB
                   $stmt=$conn->prepare("
-                    SELECT c.*, t.display_name AS term_display, y.start_year,
+                    SELECT c.*, 
+                           COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) AS term_display,
+                           y.start_year,
                            u.first_name, u.last_name
                     FROM courses c
                     JOIN terms t ON t.id=c.term_id
@@ -1297,7 +1544,7 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
                   if ($edit_id===$id){
                     echo '<tr class="row-edit js-row" data-id="'.$id.'">';
 
-                    // Hidden fields that belong to the shared update form
+                    // Hidden fields bound to shared update form
                     echo '<td style="display:none">';
                     echo   '<input type="hidden" name="action" value="update_course" form="f-update">';
                     echo   '<input type="hidden" name="csrf"   value="'.$e($_SESSION['csrf'] ?? '').'" form="f-update">';
@@ -1305,7 +1552,7 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
                     echo   '<input type="hidden" name="year"   value="'.$e((int)$row['start_year']).'" form="f-update">';
                     echo '</td>';
 
-                    // Editable cells (every input/select points to form="f-update")
+                    // Editable cells (point to form="f-update")
                     echo '<td><input class="cell-input" name="course_name" value="'.$e($row['course_name']).'" required form="f-update"></td>';
                     echo '<td><input class="cell-input" name="course_code" value="'.$e($row['course_code']).'" required form="f-update"></td>';
                     echo '<td><input class="cell-input" type="number" name="course_price" step="0.01" min="0.01" value="'.$e($row['course_price']).'" required form="f-update"></td>';
@@ -1317,7 +1564,8 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
                     echo '<option value="">Select term</option>';
                     foreach($terms as $t){
                       $sel = ((int)$t['id'] === (int)$row['term_id']) ? ' selected' : '';
-                      echo '<option value="'.$e((int)$t['id']).'" data-program="'.$e($t['program']).'"'.$sel.'>'.$e($t['display_name'] ?: $t['name']).'</option>';
+                      $label = ($t['name'] !== '' && $t['name'] !== null) ? $t['name'] : ('Term '.$t['term_no']);
+                      echo '<option value="'.$e((int)$t['id']).'" data-program="'.$e($t['program']).'"'.$sel.'>'.$e($label).'</option>';
                     }
                     echo '</select></td>';
 
@@ -1353,7 +1601,7 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
         </section>
       </main>
 
-      <!-- ===================== Create Next Year Prompt Modal ===================== -->
+      <!-- Create Next Year Prompt Modal -->
       <div class="modal" id="createNextModal" aria-hidden="true">
         <div class="modal__dialog">
           <div class="modal__header">
@@ -1372,19 +1620,16 @@ if (($view === 'reports_courses') && (($_GET['action'] ?? '') === 'export_csv'))
         </div>
       </div>
 
-      <!-- ===================== Import Modal ===================== -->
+      <!-- Import Modal -->
       <div class="modal <?php echo $open_import_modal ? 'is-open' : ''; ?>" id="importModal" aria-hidden="<?php echo $open_import_modal?'false':'true'; ?>">
         <div class="modal__dialog">
           <div class="modal__header">
             <h4>Import Courses</h4>
-            <!-- Correct close button id so JS can bind -->
             <button type="button" class="modal__close btn btn--sm btn--light" id="close-import" aria-label="Cancel import">Cancel</button>
           </div>
 
           <div class="modal__body">
-            <ol class="stepper">
-              <li class="active">Upload &amp; preview</li>
-            </ol>
+            <ol class="stepper"><li class="active">Upload &amp; preview</li></ol>
 
             <div class="import-step" id="import-step2">
               <form action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" method="post" enctype="multipart/form-data" id="import-form">
@@ -1419,13 +1664,12 @@ course_name,course_code,course_price,course_description,program,term,year,teache
           </div>
         </div>
       </div>
-
-      <?php endif; ?>
-
-    <?php else: ?>
-      <h1>You do not have access to view this page</h1><a href='logout.php'>Exit</a>
     <?php endif; ?>
-
+  <?php else: ?>
+    <h1>You do not have access to view this page</h1><a href='logout.php'>Exit</a>
+  <?php endif; ?>
 </body>
 </html>
+
+
 
