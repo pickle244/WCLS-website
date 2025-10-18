@@ -1,4 +1,4 @@
-<?php
+<?php 
 // ---------------------------------------------------------
 // Session / DB bootstrap
 // ---------------------------------------------------------
@@ -805,6 +805,68 @@ if (($_POST['action'] ?? '') === 'update_course'
       $courses_msg_html='<div class="alert danger">Update failed (prepare).</div>'; $edit_id=$id;
     }
   }
+}
+
+
+// =========================================================
+// ===== Admin → Terms page: Academic year range (SAVE) =====
+// ===== 允许修改 years.start_date / years.end_date =========
+// =========================================================
+if (($view === 'terms') 
+    && (($_POST['action'] ?? '') === 'save_year_bounds') 
+    && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+
+  $selected_start_year = (int)($_POST['year'] ?? 0);
+  $selected_year_id = year_id_by_start($conn, $selected_start_year);
+
+  $st = trim((string)($_POST['year_start'] ?? ''));
+  $en = trim((string)($_POST['year_end']   ?? ''));
+
+  if (!$selected_year_id) {
+    $_SESSION['flash'] = 'Save failed: academic year not found.';
+    header('Location: '.$_SERVER['REQUEST_URI']); exit;
+  }
+
+  // 基本日期校验（格式与先后）
+  $tsSt = @strtotime($st); $tsEn = @strtotime($en);
+  if (!$tsSt || !$tsEn || $tsSt > $tsEn) {
+    $_SESSION['flash'] = 'Save failed: invalid academic year range.';
+    header('Location: '.$_SERVER['REQUEST_URI']); exit;
+  }
+
+  // 约束：不可把学年范围缩小得小于现有 terms 的最早/最晚日期
+  $minmax = null;
+  $q = $conn->prepare("SELECT MIN(starts_on) AS min_s, MAX(ends_on) AS max_e FROM terms WHERE year_id=?");
+  $q->bind_param('i', $selected_year_id);
+  if ($q->execute()) {
+    $r = $q->get_result()->fetch_assoc();
+    $minmax = $r ?: null;
+  }
+  $q->close();
+
+  if ($minmax && ($minmax['min_s'] || $minmax['max_e'])) {
+    $minS = $minmax['min_s'] ?: $st;
+    $maxE = $minmax['max_e'] ?: $en;
+    if ($st > $minS || $en < $maxE) {
+      $_SESSION['flash'] = 'Save failed: new range conflicts with existing term dates ('.htmlspecialchars($minS).' ~ '.htmlspecialchars($maxE).').';
+      header('Location: '.$_SERVER['REQUEST_URI']); exit;
+    }
+  }
+
+  $upd = $conn->prepare("UPDATE years SET start_date=?, end_date=? WHERE id=?");
+  if (!$upd) {
+    $_SESSION['flash'] = 'Save failed (prepare).';
+    header('Location: '.$_SERVER['REQUEST_URI']); exit;
+  }
+  $upd->bind_param('ssi', $st, $en, $selected_year_id);
+  if ($upd->execute()) {
+    $_SESSION['flash'] = 'Academic year range saved.';
+  } else {
+    $_SESSION['flash'] = 'Save failed.';
+  }
+  $upd->close();
+
+  header('Location: '.$_SERVER['REQUEST_URI']); exit;
 }
 
 
@@ -1617,7 +1679,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
           $stm->close();
         }
 
-        // 读取学年边界用于提示
+        // 读取学年边界用于提示与表单初值
         $year_bound = null;
         if ($selected_year_id) {
           $ys = $conn->prepare("SELECT start_date,end_date,label FROM years WHERE id=? LIMIT 1");
@@ -1650,6 +1712,32 @@ course_name,course_code,course_price,course_description,program,term,year,teache
               <a class="btn btn--sm" href="<?php echo view_url('records'); ?>">← Back</a>
             </div>
           </div>
+
+          <!-- 学年边界：可编辑（与 term 日期分开提交，不互相影响） -->
+          <?php if ($year_bound): ?>
+  <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" 
+        class="toolbar year-range-form" style="margin-top:12px;">
+    <input type="hidden" name="action" value="save_year_bounds">
+    <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf']); ?>">
+    <input type="hidden" name="year"   value="<?php echo $e($selected_start_year); ?>">
+
+    <!-- 每组独立堆叠，避免与上方文本产生基线/行高干扰 -->
+    <div class="form-field">
+      <label for="year_start">Year start</label>
+      <input id="year_start" class="cell-input" type="date" 
+             name="year_start" value="<?php echo $e($year_bound['start_date']); ?>" required>
+    </div>
+
+    <div class="form-field">
+      <label for="year_end">Year end</label>
+      <input id="year_end" class="cell-input" type="date" 
+             name="year_end" value="<?php echo $e($year_bound['end_date']); ?>" required>
+    </div>
+
+    <button class="btn btn--sm" type="submit">Save Year Range</button>
+  </form>
+<?php endif; ?>
+
 
           <!-- 学年切换 -->
           <form method="get" class="toolbar" style="margin-top:12px; gap:8px;">
