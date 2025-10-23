@@ -807,150 +807,6 @@ if (($_POST['action'] ?? '') === 'update_course'
   }
 }
 
-
-// =========================================================
-// ===== Admin → Terms page: Academic year range (SAVE) =====
-// ===== 允许修改 years.start_date / years.end_date =========
-// =========================================================
-if (($view === 'terms') 
-    && (($_POST['action'] ?? '') === 'save_year_bounds') 
-    && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
-
-  $selected_start_year = (int)($_POST['year'] ?? 0);
-  $selected_year_id = year_id_by_start($conn, $selected_start_year);
-
-  $st = trim((string)($_POST['year_start'] ?? ''));
-  $en = trim((string)($_POST['year_end']   ?? ''));
-
-  if (!$selected_year_id) {
-    $_SESSION['flash'] = 'Save failed: academic year not found.';
-    header('Location: '.$_SERVER['REQUEST_URI']); exit;
-  }
-
-  // 基本日期校验（格式与先后）
-  $tsSt = @strtotime($st); $tsEn = @strtotime($en);
-  if (!$tsSt || !$tsEn || $tsSt > $tsEn) {
-    $_SESSION['flash'] = 'Save failed: invalid academic year range.';
-    header('Location: '.$_SERVER['REQUEST_URI']); exit;
-  }
-
-  // 约束：不可把学年范围缩小得小于现有 terms 的最早/最晚日期
-  $minmax = null;
-  $q = $conn->prepare("SELECT MIN(starts_on) AS min_s, MAX(ends_on) AS max_e FROM terms WHERE year_id=?");
-  $q->bind_param('i', $selected_year_id);
-  if ($q->execute()) {
-    $r = $q->get_result()->fetch_assoc();
-    $minmax = $r ?: null;
-  }
-  $q->close();
-
-  if ($minmax && ($minmax['min_s'] || $minmax['max_e'])) {
-    $minS = $minmax['min_s'] ?: $st;
-    $maxE = $minmax['max_e'] ?: $en;
-    if ($st > $minS || $en < $maxE) {
-      $_SESSION['flash'] = 'Save failed: new range conflicts with existing term dates ('.htmlspecialchars($minS).' ~ '.htmlspecialchars($maxE).').';
-      header('Location: '.$_SERVER['REQUEST_URI']); exit;
-    }
-  }
-
-  $upd = $conn->prepare("UPDATE years SET start_date=?, end_date=? WHERE id=?");
-  if (!$upd) {
-    $_SESSION['flash'] = 'Save failed (prepare).';
-    header('Location: '.$_SERVER['REQUEST_URI']); exit;
-  }
-  $upd->bind_param('ssi', $st, $en, $selected_year_id);
-  if ($upd->execute()) {
-    $_SESSION['flash'] = 'Academic year range saved.';
-  } else {
-    $_SESSION['flash'] = 'Save failed.';
-  }
-  $upd->close();
-
-  header('Location: '.$_SERVER['REQUEST_URI']); exit;
-}
-
-
-// =========================================================
-// ===== Admin → Terms page: list / inline update (SAVE) ====
-// ===== 只允许改 starts_on / ends_on，禁止改 name ============
-// =========================================================
-if (($view === 'terms') 
-    && (($_POST['action'] ?? '') === 'save_terms') 
-    && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
-
-  // 当前选择的学年（顶部下拉 year）
-  $selected_start_year = (int)($_POST['year'] ?? $current_start_year);
-  $selected_year_id = year_id_by_start($conn, $selected_start_year);
-
-  // 读取表单数组：不使用 name[]，name 不可编辑
-  $ids  = $_POST['id']         ?? []; // term 行的 id[]
-  $sArr = $_POST['starts_on']  ?? []; // 对应行的 starts_on[]
-  $eArr = $_POST['ends_on']    ?? []; // 对应行的 ends_on[]
-
-  if (!$selected_year_id) {
-    $_SESSION['flash'] = 'Save failed: academic year not found.';
-    header('Location: '.$_SERVER['REQUEST_URI']); exit;
-  }
-
-  // 读取学年边界，做范围校验
-  $yr = null;
-  $ys = $conn->prepare("SELECT start_date, end_date FROM years WHERE id=? LIMIT 1");
-  $ys->bind_param('i', $selected_year_id);
-  if ($ys->execute()) {
-    $res = $ys->get_result();
-    $yr  = $res->fetch_assoc();
-  }
-  $ys->close();
-
-  $errs = [];
-  $ok   = 0;
-
-  // 只更新日期，LOCK: name 不允许修改
-  $upd = $conn->prepare("UPDATE terms SET starts_on=?, ends_on=? WHERE id=? AND year_id=?");
-  if (!$upd) {
-    $_SESSION['flash'] = 'Save failed (prepare).';
-    header('Location: '.$_SERVER['REQUEST_URI']); exit;
-  }
-
-  foreach ($ids as $i => $rawId) {
-    $tid = (int)$rawId;
-    $st  = trim((string)($sArr[$i] ?? ''));
-    $en  = trim((string)($eArr[$i] ?? ''));
-
-    if ($tid <= 0 || $st === '' || $en === '') {
-      $errs[] = "Row #".($i+1).": missing date(s)";
-      continue;
-    }
-
-    $okSt = @strtotime($st); $okEn = @strtotime($en);
-    if (!$okSt || !$okEn || $okSt > $okEn) {
-      $errs[] = "Row #".($i+1).": invalid date range";
-      continue;
-    }
-    if ($yr) {
-      if ($st < $yr['start_date'] || $en > $yr['end_date']) {
-        $errs[] = "Row #".($i+1).": date out of academic year (".$yr['start_date']." ~ ".$yr['end_date'].")";
-        continue;
-      }
-    }
-
-    $upd->bind_param('ssii', $st, $en, $tid, $selected_year_id);
-    if ($upd->execute()) $ok++;
-    else $errs[] = "Row #".($i+1).": update failed";
-  }
-  $upd->close();
-
-  if ($ok > 0 && empty($errs)) {
-    $_SESSION['flash'] = "Saved $ok row(s).";
-  } elseif ($ok > 0 && !empty($errs)) {
-    $_SESSION['flash'] = "Saved $ok row(s) with warnings: ".implode(' | ', $errs);
-  } else {
-    $_SESSION['flash'] = "Save failed: ".implode(' | ', $errs);
-  }
-
-  header('Location: '.$_SERVER['REQUEST_URI']); exit;
-}
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -971,7 +827,7 @@ if (($view === 'terms')
       <h1 class="admin-title">Admin Dashboard</h1>
       <nav class="admin-nav">
         <a class="admin-link <?php echo ($view==='home')?'active':'';    ?>" href="<?php echo view_url('home'); ?>">Home</a>
-        <a class="admin-link <?php echo ($view==='records' || $view==='courses_current' || $view==='courses_next' || $view==='teachers' || $view==='terms')?'active':''; ?>" href="<?php echo view_url('records'); ?>">Edit Records</a>
+        <a class="admin-link <?php echo (in_array($view, ['records','courses_current','courses_next','courses_previous','teachers','terms'], true))?'active':''; ?>" href="<?php echo view_url('records'); ?>">Edit Records</a>
         <a class="admin-link <?php echo ($view==='reports' || strpos($view,'reports_')===0)?'active':''; ?>" href="<?php echo view_url('reports'); ?>">Reports</a>
         <a class="admin-link logout" href="logout.php">Logout</a>
       </nav>
@@ -990,6 +846,7 @@ if (($view === 'terms')
 
     <?php elseif ($view === 'records'): ?>
 
+      <!-- 只保留三张卡片；不在这里单独显示“View previous years” -->
       <main class="admin-home">
         <a class="home-card" href="<?php echo view_url('courses_current'); ?>">
           <div class="home-icon">📚</div>
@@ -1356,7 +1213,9 @@ if (($view === 'terms')
         </section>
       </main>
 
-    <?php elseif ($view === 'courses_current' || $view === 'courses_next'): ?>
+    <?php
+    // =============== Courses (Current & Next) ===============
+    elseif ($view === 'courses_current' || $view === 'courses_next'): ?>
 
       <?php if (!empty($_SESSION['flash'])): ?>
         <div class="alert success" style="max-width:1100px; margin:10px auto 0;">
@@ -1412,6 +1271,9 @@ if (($view === 'terms')
             </div>
 
             <div class="row-between" style="gap:8px;">
+              <!-- “View previous years” 仅在 Edit Courses 里显示 -->
+              <a class="btn btn--sm btn--light" href="<?php echo view_url('courses_previous'); ?>">View previous years</a>
+
               <?php if ($view==='courses_next'): ?>
                 <a class="btn btn--sm" href="<?php echo view_url('courses_current'); ?>">← Back to current year</a>
               <?php endif; ?>
@@ -1659,6 +1521,118 @@ course_name,course_code,course_price,course_description,program,term,year,teache
           </div>
         </div>
       </div>
+
+    <?php
+    // =============== Courses → Previous Years (View-Only) ===============
+    elseif ($view === 'courses_previous'): ?>
+
+      <?php
+        // 收集所有早于当前学年的学年
+        $prev_years = [];
+        $res = $conn->prepare("SELECT start_year FROM years WHERE start_year < ? ORDER BY start_year DESC");
+        $res->bind_param('i', $current_start_year);
+        if ($res->execute()){
+          $rs = $res->get_result();
+          while($r=$rs->fetch_assoc()){ $prev_years[] = (int)$r['start_year']; }
+        }
+        $res->close();
+
+        // 选中学年：如果参数无效，默认取最新的一个过去学年
+        $selected_prev = (int)($_GET['year'] ?? 0);
+        if (!$selected_prev || !in_array($selected_prev, $prev_years, true)) {
+          $selected_prev = $prev_years[0] ?? 0;
+        }
+        $selected_prev_id = $selected_prev ? year_id_by_start($conn, $selected_prev) : null;
+      ?>
+
+      <main class="admin-main">
+        <section class="card" id="course_viewonly_card">
+          <div class="row-between">
+            <div>
+              <h3 class="card-title" style="margin:0;">Courses (View-only)</h3>
+              <div class="card-sub">Previous academic years · 
+                <b><?php echo $selected_prev ? $e(year_label($selected_prev)) : 'N/A'; ?></b>
+              </div>
+            </div>
+            <div class="row-between" style="gap:8px;">
+              <a class="btn btn--sm" href="<?php echo view_url('courses_current'); ?>">← Back to Edit Courses</a>
+            </div>
+          </div>
+
+          <form method="get" class="toolbar" style="margin-top:12px; gap:8px;">
+            <input type="hidden" name="view" value="courses_previous">
+            <select class="year-select" name="year" onchange="this.form.submit()">
+              <?php if (!empty($prev_years)): ?>
+                <?php foreach($prev_years as $sy): ?>
+                  <option value="<?php echo $e($sy); ?>"<?php echo ($sy===$selected_prev)?' selected':''; ?>>
+                    <?php echo $e(year_label($sy)); ?>
+                  </option>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <option value="">No previous years</option>
+              <?php endif; ?>
+            </select>
+            <noscript><button class="btn btn--sm" type="submit">Go</button></noscript>
+          </form>
+
+          <?php
+            $rows = false;
+            if ($selected_prev_id){
+              $stmt=$conn->prepare("
+                SELECT c.*, 
+                       COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) AS term_display,
+                       y.start_year, y.label,
+                       u.first_name, u.last_name
+                FROM courses c
+                JOIN terms t ON t.id=c.term_id
+                JOIN years y ON y.id=c.year_id
+                LEFT JOIN teachers te ON te.id=c.teacher_id
+                LEFT JOIN users u ON u.id=te.user_id
+                WHERE c.year_id=?
+                ORDER BY t.program, t.term_no, c.course_code
+              ");
+              $stmt->bind_param('i',$selected_prev_id);
+              $stmt->execute(); $rows=$stmt->get_result();
+            }
+          ?>
+
+          <div class="table-wrap is-scroll" style="margin-top:10px;">
+            <table class="table table--viewonly">
+              <thead>
+                <tr>
+                  <th>name</th><th>code</th><th>price</th><th>description</th>
+                  <th>program</th><th>term</th><th>year</th><th>teacher</th><th>capacity</th><th>room</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if($rows && $rows->num_rows>0): ?>
+                  <?php while($r=$rows->fetch_assoc()): 
+                        $teacher_name = trim(($r['first_name']??'').' '.($r['last_name']??'')) ?: ('#'.$r['teacher_id']); ?>
+                    <tr>
+                      <td><?php echo $e($r['course_name']); ?></td>
+                      <td><?php echo $e($r['course_code']); ?></td>
+                      <td><?php echo $e($r['course_price']); ?></td>
+                      <td><?php echo $e($r['course_description']); ?></td>
+                      <td><?php echo $e($r['program']); ?></td>
+                      <td><?php echo $e($r['term_display']); ?></td>
+                      <td><?php echo $e($r['label']); ?></td>
+                      <td><?php echo $e($teacher_name); ?></td>
+                      <td><?php echo $e($r['default_capacity']); ?></td>
+                      <td><?php echo $e($r['room_number']); ?></td>
+                    </tr>
+                  <?php endwhile; ?>
+                <?php else: ?>
+                  <tr><td colspan="10"><?php echo $selected_prev ? 'No data.' : 'No previous years found.'; ?></td></tr>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="alert info" style="margin-top:10px;">
+            This page is view-only. To edit, switch to Current or Next year on the Edit Courses pages.
+          </div>
+        </section>
+      </main>
 
     <?php elseif ($view === 'terms'): ?>
 

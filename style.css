@@ -9,7 +9,6 @@ body{
 
 
 /* ================= Generic (legacy auth pages) ================= */
-/* Compact card container used on some auth pages */
 .container{
   background:#fff; width:450px; padding:1.5rem; margin:50px auto;
   border-radius:10px; box-shadow:0 20px 35px rgba(0,0,1,0.9);
@@ -18,7 +17,6 @@ body{
 form{ margin:0 2rem; }
 .form-title{ font-size:1.5rem; font-weight:bold; text-align:center; padding:1.3rem; margin-bottom:0.4rem; }
 
-/* Underlined inputs for legacy forms */
 input{
   color:inherit; width:100%; background:transparent; border:none; border-bottom:1px solid #757575;
   padding-left:1.5rem; font-size:15px;
@@ -28,7 +26,6 @@ input{
 input:focus{ background:transparent; outline:transparent; border-bottom:2px solid hsl(327,90%,28%); }
 input::placeholder{ color:transparent; }
 
-/* Floating labels for legacy forms */
 label{
   color:#757575; position:relative; left:1.2em; top:-1.3em; cursor:auto; transition:0.3s ease;
 }
@@ -37,12 +34,10 @@ input:not(:placeholder-shown)~label{
   top:-3em; color:hsl(327,90%,28%); font-size:15px;
 }
 
-/* Small helpers around auth */
 .recover{ text-align:right; font-size:1rem; margin-bottom:1rem; }
 .recover a{ text-decoration:none; color:#8b0000; }
 .recover a:hover{ color:#8b0000; text-decoration:underline; }
 
-/* Buttons */
 .btn{
   font-size:1.1rem; padding:8px 0; border-radius:5px; outline:none; border:none;
   width:100%; background:#8b0000; color:#fff; cursor:pointer; transition:0.2s;
@@ -54,7 +49,6 @@ input:not(:placeholder-shown)~label{
 .btn--light:hover{ background:#f2f2f2; }
 .btn[disabled]{ opacity:.5; cursor:not-allowed; pointer-events:none; }
 
-/* Social icon row on auth */
 .or{ font-size:1.1rem; margin-top:0.5rem; text-align:center; }
 .icons{ text-align:center; }
 .icons i{
@@ -64,13 +58,11 @@ input:not(:placeholder-shown)~label{
 }
 .icons i:hover{ background:#07001f; font-size:1.6rem; border:2px solid #8b0000; }
 
-/* Misc bits shared by legacy screens */
 .links{ display:flex; justify-content:space-around; padding:0 4rem; margin-top:0.9rem; font-weight:bold; }
 button{ color:#8b0000; border:none; background:transparent; font-size:1rem; font-weight:bold; }
 button:hover{ text-decoration:underline; color:#8b0000; }
 .toggle-password{ position:absolute; right:10px; top:0; transform:translateY(0); cursor:pointer; color:#555; font-size:1rem; z-index:2; }
 
-/* Underlined selects (legacy) */
 select:required:invalid{ color:#757575; }
 select option[value=""]{ color:#757575; }
 select:valid{ color:inherit; }
@@ -81,7 +73,6 @@ select{
 }
 select:focus{ outline:transparent; border-bottom:2px solid hsl(327,90%,28%); background:transparent; }
 
-/* Alerts */
 .alert{ margin:0.5rem 2rem; padding:0.75rem 1rem; border-radius:6px; font-size:0.95rem; line-height:1.4; }
 .alert.success{ background:#e6ffed; border:1px solid #b7f5c3; color:#165b31; }
 .alert.danger{  background:#ffecec; border:1px solid #f5b7b7; color:#7d1a1a; }
@@ -171,18 +162,15 @@ details:open > summary{ background:#ccf; }
 .table{ width:100%; border-collapse:collapse; }
 .table th, .table td{ border-top:1px solid #eee; padding:.6rem .5rem; text-align:left; }
 
-/* Sticky header; z-index ensures rows don't bleed over */
 .table thead th{
   position:sticky; top:0; background:#fff; box-shadow:0 1px 0 #eee; z-index:2;
 }
 .table tbody tr:nth-child(even) td{ background:#fafafa; }
 
-/* Scrollable table container height */
 .table-wrap.is-scroll{
   max-height:70vh; border:1px solid #eee; border-radius:8px; overflow:auto;
 }
 
-/* Inline-edit inputs inside tables */
 .table .cell-input{
   width:100%; padding:.28rem .4rem; border:1px solid #ddd; border-radius:6px; font-size:14px; background:#fff;
 }
@@ -194,6 +182,19 @@ td.actions{ white-space:nowrap; }
 #course_card.card{
   background:#fff; border:1px solid #eee; border-radius:12px;
   padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); margin:16px 0;
+}
+
+/* 上一学年只读模式：弱化卡片背景，避免用户误以为可编辑 */
+#course_card.is-readonly{
+  background: #faf7ff;
+  border-color: #e8e1ff;
+}
+
+/* 只读提示小胶囊 */
+.view-only-note{
+  display:inline-block; margin-left:8px; padding:2px 6px; font-size:12px;
+  border-radius:999px; background:#efeaff; color:#5a43ad; border:1px solid #dcd3ff;
+  vertical-align:middle;
 }
 
 
@@ -208,7 +209,6 @@ td.actions{ white-space:nowrap; }
 
 
 /* ================= Teachers table tweaks ================= */
-/* Fix action column width and allow wrapping to avoid layout jumps */
 .table--teachers .col-actions{ width:260px; }
 #teacher_card td.actions{ white-space:normal; }
 
@@ -243,7 +243,6 @@ td.actions{ white-space:nowrap; }
 .stepper li{ padding:4px 8px; border-radius:6px; border:1px solid #eee; background:#fafafa; font-size:13px; }
 .stepper li.active{ border-color:#333; background:#f0f3ff; }
 
-/* Modal form fields (scoped) */
 .modal label{ position:static; display:block; margin:0 0 6px; color:#333; }
 .modal input[type="text"],
 .modal input[type="number"],
@@ -258,34 +257,29 @@ td.actions{ white-space:nowrap; }
 
 
 /* ================= Terms → Year Range (scoped) ================= */
-/* Three columns: start (label+input), end (label+input), save button */
 .year-range-form{
   display:grid !important;
   grid-template-columns:minmax(260px,1fr) minmax(260px,1fr) auto;
   column-gap:16px; row-gap:8px; align-items:center;
-  margin-top:12px !important;   /* clear space from the paragraph above */
+  margin-top:12px !important;
 }
 
-/* Per-field: inline pair "label | input" */
 .year-range-form .form-field{
   display:grid !important;
   grid-template-columns:max-content auto;
   align-items:center; column-gap:8px; min-width:0;
 }
 
-/* Undo legacy floating-label offsets inside this form only */
 .year-range-form label{
   position:static !important; left:auto; top:auto;
   margin:0; white-space:nowrap; font-size:13px; line-height:1; color:#9a1a36;
 }
 
-/* Make date inputs content-width so label and input sit on one row */
 .year-range-form .cell-input[type="date"]{
   width:auto !important; min-width:170px; height:34px;
   padding:4px 8px; box-sizing:border-box;
 }
 
-/* Stack on small screens */
 @media (max-width:640px){
   .year-range-form{ grid-template-columns:1fr; row-gap:10px; }
   .year-range-form button{ justify-self:start; }
