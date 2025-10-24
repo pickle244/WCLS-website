@@ -440,12 +440,7 @@
     }
   }
 
-
-  /**
- * Print and clear a flash message from $_SESSION['flash'].
- * Usage (already used in index.php):
- *   if (!empty($_SESSION['flash'])) { ... }
- */
+// Print and clear a flash message from $_SESSION['flash'].
 function print_flash(): void {
   if (!empty($_SESSION['flash'])) {
     $msg = htmlspecialchars((string)$_SESSION['flash'], ENT_QUOTES, 'UTF-8');

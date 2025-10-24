@@ -1,50 +1,49 @@
-<?php 
+<?php  
 // ---------------------------------------------------------
-// Session / DB bootstrap
+// Session & DB bootstrap
 // ---------------------------------------------------------
 session_start();
 require 'connection.php';
 
-// Block unauthenticated users
+// only logged-in users can access this page
 if (!isset($_SESSION['user'])) { header('Location: login.php'); exit; }
 
-// View router
+// View routing (default -> home)
 $view = isset($_GET['view']) ? $_GET['view'] : 'home';
 
-// Build same-page links with a new `view` query param
+// Build a link to the same script with a different ?view=...
 function view_url($v, array $extra = []){
   $base = strtok($_SERVER['REQUEST_URI'], '?');
   $q = array_merge(['view'=>$v], $extra);
   return htmlspecialchars($base.'?'.http_build_query($q), ENT_QUOTES, 'UTF-8');
 }
 
-// CSRF token
+// CSRF token for all POST forms
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 
-// Short escape
+// Shortcut HTML escaper
 $e = fn($s)=>htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 
-// ---------------------------------------------------------
-// Academic year helpers (backed by `years` table)
-// ---------------------------------------------------------
 
-/** Format 2025 -> "2025-2026" */
+// Academic year helpers (data comes from `years` table)
+
+
 function year_label(int $y): string { return $y.'-'.($y+1); }
 
-/** current academic year's start_year from DB; fallback 9/1 cutoff */
+//Get current start_year from DB
 function current_start_year_db(mysqli $conn): int {
   $res = $conn->query("SELECT start_year FROM years WHERE is_current=1 LIMIT 1");
   if ($res && $row = $res->fetch_assoc()) return (int)$row['start_year'];
   $Y=(int)date('Y'); $m=(int)date('n'); return ($m>=9)?$Y:($Y-1);
 }
 
-/** Subview → working year (start_year int) */
+//Decide working year (current vs next) 
 function working_year_for_courses(string $subview, int $current): int {
   return ($subview === 'courses_next') ? ($current + 1) : $current;
 }
 
-/** Find years.id by start_year */
+//Look up years.id by its start_year 
 function year_id_by_start(mysqli $conn, int $start_year): ?int {
   $stm = $conn->prepare("SELECT id FROM years WHERE start_year=? LIMIT 1");
   $stm->bind_param('i',$start_year);
@@ -57,7 +56,7 @@ function year_id_by_start(mysqli $conn, int $start_year): ?int {
   return null;
 }
 
-/** Guard: writes must match page context (Courses页使用) */
+//writes must match the page's year context
 function assert_year_matches_context_or_die(string $courses_subview, int $submitted_start_year, int $current_start_year): void {
   $expected = working_year_for_courses($courses_subview, $current_start_year);
   if ($submitted_start_year !== $expected) {
@@ -69,9 +68,9 @@ function assert_year_matches_context_or_die(string $courses_subview, int $submit
 }
 
 
-// ---------------------------------------------------------
-// Teacher helpers (dropdown renderer)
-// ---------------------------------------------------------
+
+// Teacher helper functions
+
 if (!function_exists('render_teacher_options')) {
   function render_teacher_options(array $teachers, $selected_id = null): string {
     $h = fn($s)=>htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -86,9 +85,9 @@ if (!function_exists('render_teacher_options')) {
 }
 
 
-// ---------------------------------------------------------
-// CSV helpers (Courses import & Reports export)
-// ---------------------------------------------------------
+
+// CSV helper functions (courses import / reports export)
+
 $HEADER_ALIASES = [
   'course_name'        => ['course name','name','课程名','课程名称'],
   'course_code'        => ['course code','code','课程代码','课程编号'],
@@ -114,39 +113,34 @@ function json_h($data){ return htmlspecialchars(json_encode($data, JSON_UNESCAPE
 function read_csv_preview($tmp_path,$limit=10){
   $fh=fopen($tmp_path,'r'); if(!$fh) return [null,null,'Cannot open uploaded file.'];
   $first=fgets($fh); if($first===false){ fclose($fh); return [null,null,'Empty CSV.']; }
-  $first=preg_replace('/^\xEF\xBB\xBF/','',$first);
+  $first=preg_replace('/^\xEF\xBB\xBF/','',$first); // strip BOM if present
   $headers=str_getcsv($first); if(!$headers||count($headers)===0){ fclose($fh); return [null,null,'Empty header row.']; }
   $rows=[]; while(($line=fgets($fh))!==false && count($rows)<$limit) $rows[]=str_getcsv($line);
   fclose($fh); return [$headers,$rows,null];
 }
 
 
-// ---------------------------------------------------------
+
 // Page-scoped state (Courses)
-// ---------------------------------------------------------
+
 $current_start_year = current_start_year_db($conn);
 $courses_subview = in_array($view, ['courses_current','courses_next'], true) ? $view : 'courses_current';
 $working_start_year = working_year_for_courses($courses_subview, $current_start_year);
 $working_year_id = year_id_by_start($conn, $working_start_year);
 
-// messages & modal flags
+
 $courses_msg_html    = '';
 $import_preview_html = '';
 $import_result_html  = '';
 $open_import_modal   = false;
 
 
-// =========================================================
-// ======= Admin → Teachers page: create/edit handlers =====
-// =========================================================
 
 $teachers_msg_html = '';
 $teacher_edit_id   = isset($_GET['edit_teacher']) ? (int)$_GET['edit_teacher'] : 0;
 
-/**
- * Basic email existence check in users table.
- * Note: enforce unique email at app layer to avoid surprises.
- */
+// Check if an email already exists in users.
+
 function users_email_exists(mysqli $conn, string $email, ?int $exclude_user_id=null): bool {
   $sql = "SELECT id FROM users WHERE email=?";
   if ($exclude_user_id) $sql .= " AND id<>?";
@@ -162,8 +156,8 @@ function users_email_exists(mysqli $conn, string $email, ?int $exclude_user_id=n
 }
 
 /**
- * Generate a readable random password.
- * - Length 12: mixed case + digits, avoid ambiguous characters.
+ * Generate a readable random initial password.
+ * Uses mixed case + digits, skips ambiguous chars.
  */
 function gen_initial_password(int $len=12): string {
   $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -171,7 +165,7 @@ function gen_initial_password(int $len=12): string {
   return $out;
 }
 
-// Handle: add new teacher
+// Create teacher 
 if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
 
   $fn   = trim($_POST['first_name'] ?? '');
@@ -181,7 +175,7 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash
   $bio  = trim($_POST['bio']        ?? '');
   $img  = trim($_POST['image']      ?? '');
 
-  $notify = true;
+  $notify = true; // send welcome email with temp password
 
   $err=[];
   if ($fn==='')   $err[]='first name';
@@ -198,12 +192,14 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash
 
     $conn->begin_transaction();
     try{
+      // create users row
       $stmt = $conn->prepare("INSERT INTO users (first_name,last_name,email,password,account_type) VALUES (?,?,?,?, 'Teacher')");
       $stmt->bind_param('ssss', $fn,$ln,$em,$pwd_hash);
       if(!$stmt->execute()){ throw new Exception('users insert failed'); }
       $user_id = (int)$stmt->insert_id;
       $stmt->close();
 
+      // create teachers row pointing to the user
       $stmt2 = $conn->prepare("INSERT INTO teachers (user_id, title, bio, image) VALUES (?,?,?,?)");
       $stmt2->bind_param('isss', $user_id,$title,$bio,$img);
       if(!$stmt2->execute()){ throw new Exception('teachers insert failed'); }
@@ -212,6 +208,7 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash
 
       $conn->commit();
 
+
       $_SESSION['flash_teacher_pwd'] = [
         'name'  => trim($fn.' '.$ln),
         'email' => $em,
@@ -219,6 +216,7 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash
         'id'    => $teacher_id,
       ];
 
+      // send welcome email with login URL
       if ($notify) {
         require_once __DIR__ . '/script.php';
         if (function_exists('send_teacher_welcome')) {
@@ -238,7 +236,7 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'add_teacher') && hash
   }
 }
 
-// Handle: update teacher
+// Update teacher
 if (($view==='teachers') && (($_POST['action'] ?? '') === 'update_teacher') && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
   $tid = (int)($_POST['teacher_id'] ?? 0);
   $uid = (int)($_POST['user_id']    ?? 0);
@@ -285,12 +283,13 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'update_teacher') && h
   }
 }
 
-// Handle: reset teacher password
+// Reset teacher password (and email it)
 if (($view==='teachers') && (($_POST['action'] ?? '') === 'reset_teacher_password') && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
   $uid = (int)($_POST['user_id'] ?? 0);
   $tid = (int)($_POST['teacher_id'] ?? 0);
   $notify = true;
 
+  // locate user
   $row = null;
   if ($uid>0){
     $stm = $conn->prepare("SELECT first_name,last_name,email FROM users WHERE id=? LIMIT 1");
@@ -309,6 +308,7 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'reset_teacher_passwor
     $u = $conn->prepare("UPDATE users SET password=? WHERE id=?");
     $u->bind_param('si', $pwd_hash, $uid);
     if($u->execute()){
+      // show the new password one-time
       $_SESSION['flash_teacher_pwd'] = [
         'name'  => trim(($row['first_name']??'').' '.($row['last_name']??'')),
         'email' => $row['email'],
@@ -333,15 +333,13 @@ if (($view==='teachers') && (($_POST['action'] ?? '') === 'reset_teacher_passwor
 }
 
 
-// ---------------------------------------------------------
-// Download template (CSV for Courses)
-// ---------------------------------------------------------
+// Download CSV template (Courses)
 if (($_GET['action'] ?? '') === 'download_template' && in_array($view, ['courses_current','courses_next'], true)) {
   $filename = 'courses_template_'.$working_start_year.'.csv';
   header('Content-Type: text/csv; charset=UTF-8');
   header('Content-Disposition: attachment; filename="'.$filename.'"');
   $out = fopen('php://output', 'w');
-  fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+  fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM for Excel
   fputcsv($out, ['course_name','course_code','course_price','course_description','program','term','year','teacher_id','default_capacity','room_number']);
   fputcsv($out, ['中文一年级','C101','300','一年级综合课','Sunday','Fall',$working_start_year,'2','25','101']);
   fputcsv($out, ['中文二年级','C201','320','二年级综合课','Sunday','Fall',$working_start_year,'2','28','102']);
@@ -349,9 +347,8 @@ if (($_GET['action'] ?? '') === 'download_template' && in_array($view, ['courses
 }
 
 
-// ---------------------------------------------------------
+
 // Import preview (Courses)
-// ---------------------------------------------------------
 if (($_POST['action'] ?? '') === 'preview_courses'
     && in_array($view, ['courses_current','courses_next'], true)) {
   $open_import_modal = true;
@@ -372,6 +369,7 @@ if (($_POST['action'] ?? '') === 'preview_courses'
       if ($err) {
         $import_preview_html = '<div class="alert danger">'.$e($err).'</div>';
       } else {
+        // map headers to standard keys
         $map=[];
         foreach($raw_headers as $i=>$h){ $std=map_header($h,$HEADER_ALIASES); if($std) $map[$i]=$std; }
         $required = ['course_name','course_code','course_price','program','term','year','teacher_id'];
@@ -379,10 +377,11 @@ if (($_POST['action'] ?? '') === 'preview_courses'
         if ($missing) {
           $import_preview_html = '<div class="alert danger">Missing required columns: '.$e(implode(', ', $missing)).'</div>';
         } else {
+          // build preview
           $preview_items=[];
           foreach($rows as $r){
             $item=[]; foreach($map as $idx=>$std) $item[$std]=$r[$idx]??'';
-            $item['year'] = $target_start; // lock to working year
+            $item['year'] = $target_start; // lock to target year
             if (array_filter($item, fn($v)=>$v!=='' && $v!==null)) $preview_items[]=$item;
           }
           ob_start();
@@ -408,9 +407,7 @@ if (($_POST['action'] ?? '') === 'preview_courses'
 }
 
 
-// ---------------------------------------------------------
-// Import final (CSV -> courses with year_id/term_id)
-// ---------------------------------------------------------
+// Import final
 if (($_POST['action'] ?? '') === 'import_courses'
     && in_array($view, ['courses_current','courses_next'], true)) {
   $open_import_modal = true;
@@ -428,9 +425,9 @@ if (($_POST['action'] ?? '') === 'import_courses'
     } else {
       $COLS = ['course_name','course_code','course_price','course_description','program','term','year','teacher_id','default_capacity','room_number'];
 
-      // Build (program,name or term_no) -> term_id map for the target year
-      $termMap = []; // key: program.'|'.strtolower(name)
-      $termNoMap = []; // key: program.'|'.term_no
+      // Build maps: (program, name) and (program, term_no) → term_id (only for target year)
+      $termMap = [];   
+      $termNoMap = []; 
       $trs = $conn->prepare("SELECT id, program, term_no, name FROM terms WHERE year_id=?");
       $trs->bind_param('i',$target_year_id);
       if ($trs->execute()) {
@@ -444,6 +441,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
       }
       $trs->close();
 
+      // small helpers
       $teacher_exists = function(int $tid) use ($conn): bool {
         $stmt = $conn->prepare("SELECT 1 FROM teachers WHERE id=?");
         if(!$stmt) return false;
@@ -460,7 +458,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
 
       $ok_rows=[]; $errors=[];
       foreach($payload as $i=>$row){
-        $idx=$i+2;
+        $idx=$i+2; // CSV line number (1-based, plus header)
         $clean=[]; foreach($COLS as $c) $clean[$c]=trim((string)($row[$c]??''));
         $missing=[]; foreach(['course_name','course_code','course_price','program','term','teacher_id'] as $req){ if($clean[$req]==='') $missing[]=$req; }
         if ($missing){ $errors[$idx]='missing: '.implode(', ',$missing); continue; }
@@ -470,7 +468,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
         $clean['teacher_id']=(int)$clean['teacher_id'];
         if(!$teacher_exists($clean['teacher_id'])){ $errors[$idx]='teacher_id '.$clean['teacher_id'].' not found'; continue; }
 
-        // resolve term_id by program + term(name/number)
+        // resolve term by program + name or program + number
         $term_name_lc = strtolower($clean['term']);
         $term_id = $termMap[$clean['program'].'|'.$term_name_lc] ?? null;
         if (!$term_id && is_numeric($clean['term'])) {
@@ -508,6 +506,7 @@ if (($_POST['action'] ?? '') === 'import_courses'
         }
         $import_result_html = ob_get_clean();
       } else {
+
         $conn->begin_transaction();
         $inserted=0;
         foreach($ok_rows as $r){
@@ -530,13 +529,11 @@ if (($_POST['action'] ?? '') === 'import_courses'
 }
 
 
-// ---------------------------------------------------------
-// Copy current year → next year (skip duplicates)
-// ---------------------------------------------------------
+// Copy courses: current year → next year (skip duplicates)
 if (($_POST['action'] ?? '') === 'copy_to_next_year'
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
 
-  $from_start = $current_start_year; // only copy from current
+  $from_start = $current_start_year; // copy from current only
   $to_start   = $current_start_year + 1;
 
   $from_year_id = year_id_by_start($conn, $from_start);
@@ -560,7 +557,7 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
   }
   $q->close();
 
-  // load source courses with term_no/program
+  // load source courses with their term_no/program
   $sql = "SELECT c.*, t.program, t.term_no
           FROM courses c
           JOIN terms t ON t.id = c.term_id
@@ -617,9 +614,7 @@ if (($_POST['action'] ?? '') === 'copy_to_next_year'
 }
 
 
-// ---------------------------------------------------------
-// Save & Publish: dump working year's catalog as JSON
-// ---------------------------------------------------------
+// Save & Publish: output working year's catalog as JSON
 if (($_POST['action'] ?? '') === 'publish_year'
     && in_array($view, ['courses_current','courses_next'], true)
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
@@ -632,6 +627,7 @@ if (($_POST['action'] ?? '') === 'publish_year'
     header('Location: '.$_SERVER['REQUEST_URI']); exit;
   }
 
+  // assemble view model for JSON
   $sql = "SELECT
             c.id, c.program, c.course_code, c.course_name, c.course_price,
             c.course_description, c.default_capacity, c.room_number,
@@ -689,9 +685,8 @@ if (($_POST['action'] ?? '') === 'publish_year'
 }
 
 
-// ---------------------------------------------------------
 // Inline create / update for Courses
-// ---------------------------------------------------------
+
 $teacher_exists = function(int $tid) use ($conn): bool {
   $stmt=$conn->prepare("SELECT 1 FROM teachers WHERE id=?"); if(!$stmt) return false;
   $stmt->bind_param('i',$tid); $stmt->execute(); $stmt->store_result(); $ok=$stmt->num_rows>0; $stmt->close(); return $ok;
@@ -707,7 +702,7 @@ $dup_exists_edit = function(int $year_id,int $term_id,string $code,?int $exclude
 
 $edit_id = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 
-// Create (new course row)
+// Create a new course row (inline)
 if (($_POST['action'] ?? '') === 'add_course_inline'
     && in_array($view, ['courses_current','courses_next'], true)
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
@@ -723,9 +718,11 @@ if (($_POST['action'] ?? '') === 'add_course_inline'
   $term_id = (int)($_POST['term_id'] ?? 0);
   $submitted_start = (int)($_POST['year'] ?? $working_start_year);
 
+  // ensure the form year matches the page context
   assert_year_matches_context_or_die($view, $submitted_start, $current_start_year);
   $year_id = year_id_by_start($conn, $submitted_start);
 
+  // validations
   $missing = [];
   if ($name === '')     $missing[] = 'name';
   if ($code === '')     $missing[] = 'code';
@@ -768,7 +765,7 @@ if (($_POST['action'] ?? '') === 'add_course_inline'
   }
 }
 
-// Update (edit course row)
+// Update an existing course row (inline)
 if (($_POST['action'] ?? '') === 'update_course'
     && in_array($view, ['courses_current','courses_next'], true)
     && hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
@@ -781,9 +778,11 @@ if (($_POST['action'] ?? '') === 'update_course'
   $term_id = (int)($_POST['term_id'] ?? 0);
   $submitted_start = (int)($_POST['year'] ?? 0);
 
+  // year guard
   assert_year_matches_context_or_die($view, $submitted_start, $current_start_year);
   $year_id = year_id_by_start($conn, $submitted_start);
 
+  // validations
   $errs=[];
   if($id<=0) $errs[]='Invalid id.';
   if($program===''||$code===''||$name===''||$term_id<=0||!$year_id) $errs[]='Required fields missing.';
@@ -835,7 +834,7 @@ if (($_POST['action'] ?? '') === 'update_course'
 
     <?php if ($view === 'home'): ?>
 
-      <!-- Home welcome card -->
+      <!-- Simple welcome card on Admin home -->
       <main class="admin-home">
         <div class="home-card" style="cursor:default;">
           <div class="home-icon"></div>
@@ -846,7 +845,7 @@ if (($_POST['action'] ?? '') === 'update_course'
 
     <?php elseif ($view === 'records'): ?>
 
-      <!-- 只保留三张卡片；不在这里单独显示“View previous years” -->
+
       <main class="admin-home">
         <a class="home-card" href="<?php echo view_url('courses_current'); ?>">
           <div class="home-icon">📚</div>
@@ -879,6 +878,7 @@ if (($_POST['action'] ?? '') === 'update_course'
           </div>
 
           <?php
+
             if (!empty($_SESSION['flash_teacher_pwd'])):
               $fp = $_SESSION['flash_teacher_pwd'];
               unset($_SESSION['flash_teacher_pwd']);
@@ -926,6 +926,7 @@ if (($_POST['action'] ?? '') === 'update_course'
                 </tr>
 
                 <?php
+                  // List teachers; each row can switch into edit mode
                   $rows = $conn->query("
                     SELECT t.id AS tid, t.title, t.bio, t.image,
                            u.id AS uid, u.first_name, u.last_name, u.email
@@ -1027,6 +1028,7 @@ if (($_POST['action'] ?? '') === 'update_course'
           </div>
 
           <?php
+
           $q = trim($_GET['q'] ?? '');
           $sql = "SELECT s.id, s.first_name AS sfn, s.last_name AS sln, s.DOB,
                          u.first_name AS pfn, u.last_name AS pln, u.email,
@@ -1099,6 +1101,7 @@ if (($_POST['action'] ?? '') === 'update_course'
           </div>
 
           <?php
+            // choose academic year to report
             $selected_year = (int)($_GET['year'] ?? $current_start_year);
             $year_id_for_report = year_id_by_start($conn, $selected_year);
           ?>
@@ -1121,6 +1124,7 @@ if (($_POST['action'] ?? '') === 'update_course'
           </form>
 
           <?php
+            // query courses with teacher and term labels
             $q = trim($_GET['q'] ?? '');
             $sql = "SELECT c.program, c.course_code, c.course_name, c.course_price,
                            COALESCE(NULLIF(t.name,''), CONCAT('Term ', t.term_no)) AS term_disp,
@@ -1214,7 +1218,7 @@ if (($_POST['action'] ?? '') === 'update_course'
       </main>
 
     <?php
-    // =============== Courses (Current & Next) ===============
+    // Courses (Current & Next)
     elseif ($view === 'courses_current' || $view === 'courses_next'): ?>
 
       <?php if (!empty($_SESSION['flash'])): ?>
@@ -1224,6 +1228,7 @@ if (($_POST['action'] ?? '') === 'update_course'
       <?php endif; ?>
 
       <?php
+      // load teachers for dropdowns
       $teachers_all = [];
       $res = $conn->query("
         SELECT t.id, u.first_name, u.last_name
@@ -1235,6 +1240,7 @@ if (($_POST['action'] ?? '') === 'update_course'
         $teachers_all[(int)$r['id']] = trim($r['first_name'].' '.$r['last_name']);
       }
 
+      // load terms for the working year
       $terms = [];
       if ($working_year_id){
         $stm = $conn->prepare("SELECT id, program, term_no, name FROM terms WHERE year_id=? ORDER BY program, term_no");
@@ -1246,6 +1252,7 @@ if (($_POST['action'] ?? '') === 'update_course'
         $stm->close();
       }
 
+      // whether next-year already has courses (controls menu state)
       $next_has_courses = false;
       if ($view==='courses_current') {
         $ny_id = year_id_by_start($conn, $current_start_year+1);
@@ -1271,7 +1278,7 @@ if (($_POST['action'] ?? '') === 'update_course'
             </div>
 
             <div class="row-between" style="gap:8px;">
-              <!-- “View previous years” 仅在 Edit Courses 里显示 -->
+
               <a class="btn btn--sm btn--light" href="<?php echo view_url('courses_previous'); ?>">View previous years</a>
 
               <?php if ($view==='courses_next'): ?>
@@ -1380,6 +1387,7 @@ if (($_POST['action'] ?? '') === 'update_course'
               </tr>
 
               <?php
+
                 if ($working_year_id){
                   $stmt=$conn->prepare("
                     SELECT c.*, 
@@ -1460,6 +1468,7 @@ if (($_POST['action'] ?? '') === 'update_course'
         </section>
       </main>
 
+      <!--create next-year scaffold  -->
       <div class="modal" id="createNextModal" aria-hidden="true">
         <div class="modal__dialog">
           <div class="modal__header">
@@ -1478,6 +1487,7 @@ if (($_POST['action'] ?? '') === 'update_course'
         </div>
       </div>
 
+      <!-- CSV import  -->
       <div class="modal <?php echo $open_import_modal ? 'is-open' : ''; ?>" id="importModal" aria-hidden="<?php echo $open_import_modal?'false':'true'; ?>">
         <div class="modal__dialog">
           <div class="modal__header">
@@ -1504,6 +1514,7 @@ if (($_POST['action'] ?? '') === 'update_course'
             </div>
 
             <?php
+
               if (!empty($import_preview_html)) echo '<div class="import-result">'.$import_preview_html.'</div>';
               if (!empty($import_result_html))  echo '<div class="import-result">'.$import_result_html.'</div>';
             ?>
@@ -1523,11 +1534,11 @@ course_name,course_code,course_price,course_description,program,term,year,teache
       </div>
 
     <?php
-    // =============== Courses → Previous Years (View-Only) ===============
+    // Courses → Previous Years (View-Only) 
     elseif ($view === 'courses_previous'): ?>
 
       <?php
-        // 收集所有早于当前学年的学年
+        // Collect academic years earlier than the current
         $prev_years = [];
         $res = $conn->prepare("SELECT start_year FROM years WHERE start_year < ? ORDER BY start_year DESC");
         $res->bind_param('i', $current_start_year);
@@ -1537,7 +1548,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
         }
         $res->close();
 
-        // 选中学年：如果参数无效，默认取最新的一个过去学年
+        // Determine selected year; default to the latest available previous year
         $selected_prev = (int)($_GET['year'] ?? 0);
         if (!$selected_prev || !in_array($selected_prev, $prev_years, true)) {
           $selected_prev = $prev_years[0] ?? 0;
@@ -1576,6 +1587,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
           </form>
 
           <?php
+            // View-only list of courses for the selected previous year
             $rows = false;
             if ($selected_prev_id){
               $stmt=$conn->prepare("
@@ -1637,11 +1649,11 @@ course_name,course_code,course_price,course_description,program,term,year,teache
     <?php elseif ($view === 'terms'): ?>
 
       <?php
-        // 当前 Terms 页：支持选择学年编辑该年的所有 term（Afterschool 1~10，Sunday 1~2）
+        // Terms page: edit all terms for a chosen academic year
         $selected_start_year = (int)($_GET['year'] ?? $current_start_year);
         $selected_year_id = year_id_by_start($conn, $selected_start_year);
 
-        // 装载该学年的 terms
+        // Load terms for the selected year
         $terms_rows = [];
         if ($selected_year_id) {
           $stm = $conn->prepare("SELECT id, year_id, program, term_no, name, starts_on, ends_on FROM terms WHERE year_id=? ORDER BY program, term_no");
@@ -1653,7 +1665,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
           $stm->close();
         }
 
-        // 读取学年边界用于提示与表单初值
+        // Read year date
         $year_bound = null;
         if ($selected_year_id) {
           $ys = $conn->prepare("SELECT start_date,end_date,label FROM years WHERE id=? LIMIT 1");
@@ -1687,7 +1699,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
             </div>
           </div>
 
-          <!-- 学年边界：可编辑（与 term 日期分开提交，不互相影响） -->
+
           <?php if ($year_bound): ?>
   <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" 
         class="toolbar year-range-form" style="margin-top:12px;">
@@ -1695,7 +1707,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
     <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf']); ?>">
     <input type="hidden" name="year"   value="<?php echo $e($selected_start_year); ?>">
 
-    <!-- 每组独立堆叠，避免与上方文本产生基线/行高干扰 -->
+ 
     <div class="form-field">
       <label for="year_start">Year start</label>
       <input id="year_start" class="cell-input" type="date" 
@@ -1713,7 +1725,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
 <?php endif; ?>
 
 
-          <!-- 学年切换 -->
+          <!-- Switch academic year to edit -->
           <form method="get" class="toolbar" style="margin-top:12px; gap:8px;">
             <input type="hidden" name="view" value="terms">
             <select class="year-select" name="year" onchange="this.form.submit()">
@@ -1729,7 +1741,7 @@ course_name,course_code,course_price,course_description,program,term,year,teache
             <noscript><button class="btn btn--sm" type="submit">Go</button></noscript>
           </form>
 
-          <!-- 保存表单（一次性提交所有行的日期） -->
+
           <form method="post" action="<?php echo $e($_SERVER['REQUEST_URI']); ?>" style="margin-top:10px;">
             <input type="hidden" name="action" value="save_terms">
             <input type="hidden" name="csrf"   value="<?php echo $e($_SESSION['csrf']); ?>">
@@ -1751,15 +1763,15 @@ course_name,course_code,course_price,course_description,program,term,year,teache
                   <?php if (!empty($terms_rows)): ?>
                     <?php foreach($terms_rows as $t): ?>
                       <tr>
-                        <!-- id hidden，用于更新定位 -->
+                      
                         <td style="display:none;">
                           <input type="hidden" name="id[]" value="<?php echo (int)$t['id']; ?>">
                         </td>
 
-                        <!-- Program 只读展示 -->
+                   
                         <td><?php echo $e($t['program']); ?></td>
 
-                        <!-- Name：固定规则只读文本（Sunday: Fall/Spring；Afterschool: Block1~10） -->
+                        
                         <td>
                           <?php
                             $label = ($t['program'] === 'Sunday')
@@ -1769,10 +1781,10 @@ course_name,course_code,course_price,course_description,program,term,year,teache
                           ?>
                         </td>
 
-                        <!-- term_no 只读展示，便于核对 -->
+                       
                         <td><?php echo (int)$t['term_no']; ?></td>
 
-                        <!-- 日期可编辑 -->
+   
                         <td><input class="cell-input" type="date" name="starts_on[]" value="<?php echo $e($t['starts_on']); ?>" required></td>
                         <td><input class="cell-input" type="date" name="ends_on[]"   value="<?php echo $e($t['ends_on']);   ?>" required></td>
                       </tr>
@@ -1787,9 +1799,9 @@ course_name,course_code,course_price,course_description,program,term,year,teache
             <div class="row-between" style="margin-top:10px;">
               <div class="muted">
                 <ul style="margin:4px 0 0 16px;">
-                  <li>Sunday：名称固定为 <b>Fall</b>（term_no=1）与 <b>Spring</b>（term_no=2），不可修改。</li>
-                  <li>Afterschool：名称固定为 <b>Block1 ~ Block10</b>（term_no=1~10），不可修改。</li>
-                  <li>仅允许修改 <b>starts_on / ends_on</b>；系统会校验是否在学年范围内。</li>
+                  <li>Sunday: names are fixed as <b>Fall</b> (term_no=1) and <b>Spring</b> (term_no=2).</li>
+                  <li>Afterschool: names are fixed as <b>Block1 ~ Block10</b> (term_no=1~10).</li>
+                  <li>Only <b>starts_on</b> and <b>ends_on</b> are editable; system validates they fall within the academic year.</li>
                 </ul>
               </div>
               <div>
@@ -1809,3 +1821,4 @@ course_name,course_code,course_price,course_description,program,term,year,teache
   <?php endif; ?>
 </body>
 </html>
+

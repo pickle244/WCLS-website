@@ -5,22 +5,12 @@
 session_start();
 require 'connection.php';
 
-/* Variable declarations (state for rendering + processing)
- * $invalid        : if true, we do NOT show the reset form (invalid/missing/expired token)
- * $emailForReset  : email associated with the valid token (fetched from password_reset)
- * $errorMsgs      : validation errors for the submitted passwords
- * $statusMsg      : placeholder for any general status
- */
 $invalid = false;        
 $emailForReset = '';     
 $errorMsgs = [];         
 $statusMsg='';           
 
-/* ------------------------------
- * 1) Validate token from URL (existence + expiry)
- *    - If token missing or not found => mark as invalid
- *    - If token expired => delete that token row and mark as invalid
- * ------------------------------ */
+
 $token = $_GET['token'] ?? '';
 if ($token === '') {
     // No token in URL => cannot proceed
@@ -52,14 +42,7 @@ if ($token === '') {
     }
 }
 
-/*Handle POST submit (only when token is valid)
- *    - Validate password strength rules and match
- *    - If valid:
- *        a) Hash password
- *        b) Update users.password by email
- *        c) Delete ALL tokens for that email (cleanup)
- *        d) Set session banner + redirect to login
- * ------------------------------ */
+
 if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
     $newPass = $_POST['password'] ?? '';
     $confirm = $_POST['passwordConfirm'] ?? '';
@@ -86,7 +69,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
 
     // If no errors, persist the new password and clean up tokens
     if (empty($errorMsgs)) {
-        // Hash the new password (users.password stores hash)
+        // Hash the new password 
         $newHash = password_hash($newPass, PASSWORD_DEFAULT);
 
         // Update users.password for this email
@@ -95,7 +78,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
         $u->execute();
         $u->close();
 
-        // Delete all tokens for this email (cleanup)
+        // Delete all tokens for this email 
         $d = $conn->prepare("DELETE FROM password_reset WHERE email = ?");
         $d->bind_param("s", $emailForReset);
         $d->execute();
@@ -122,10 +105,10 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_pa
     <h1 class="form-title">Reset Password</h1>
 
     <?php if ($invalid): ?>
-      <!-- Case A: token invalid or expired -> only show a red alert, no form -->
+      <!-- Case A: token invalid or expired  -->
       <div class="alert" style="color: red;">Reset link is invalid or has expired.</div>
     <?php else: ?>
-      <!-- Case B: token valid -> optionally show validation errors + the form -->
+      <!-- Case B: token valid  -->
       <?php if (!empty($errorMsgs)): ?>
         <div class="alert danger">
           <ul style="margin-left:1rem;">

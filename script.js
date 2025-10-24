@@ -1,6 +1,4 @@
-/* =========================================================
-   1) Login/Signup: toggle password visibility
-   ========================================================= */
+//   1) Login/Signup: toggle password visibility 
 document.querySelectorAll('.toggle-password').forEach(icon => {
   icon.addEventListener('click', function () {
     const input = this.previousElementSibling;
@@ -16,24 +14,14 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 });
 
 
-/* =========================================================
-   2) Courses: disable click-to-edit on table cells
-   ---------------------------------------------------------
-   We intentionally DO NOT attach any click handler on table
-   rows or cells. Editing is allowed only via the "Edit"
-   button in the last column.
-   ========================================================= */
-// (Intentionally empty)
 
+// Import modal (single-step: choose -> preview/import)
 
-/* =========================================================
-   3) Import modal (single-step: choose -> preview/import)
-   ========================================================= */
 (function(){
   var modal = document.getElementById('importModal');
   if (!modal) return;
 
-  var closeBtn   = document.getElementById('close-import');   // <-- must exist
+  var closeBtn   = document.getElementById('close-import');   
   var chooseBtn  = document.getElementById('btn-import-choose');
   var fileInput  = document.getElementById('import-file');
   var fileBadge  = document.getElementById('import-chosen-file');
@@ -77,9 +65,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 })();
 
 
-/* =========================================================
-   4) "Plan Next Year" dropdown (current-year page)
-   ========================================================= */
+//  "Plan Next Year" dropdown (current-year page)
 (function(){
   var btn  = document.getElementById('btn-plan-next');
   var menu = document.getElementById('menu-plan-next');
@@ -97,9 +83,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
 })();
 
 
-/* =========================================================
-   5) "Create for next year" small modal and auto-open import
-   ========================================================= */
+//    "Create for next year" small modal and auto-open import
 (function(){
   var btnCreate = document.getElementById('btn-create-next');      // menu: "Create for next year"
   var modal     = document.getElementById('createNextModal');      // small confirm modal
@@ -121,7 +105,6 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
   if (closeBtn) closeBtn.addEventListener('click', close);
   if (modal) modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
 
-  // add query so next page auto-opens Import
   if (goImport){
     goImport.addEventListener('click', function(){
       var url = new URL(goImport.href, location.origin);
@@ -130,7 +113,6 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
     });
   }
 
-  // if landing on next-year page with ?open_import=1, click Import programmatically
   (function autoOpenOnNext(){
     var params = new URLSearchParams(location.search);
     if (params.get('open_import') === '1'){
@@ -140,15 +122,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
   })();
 })();
 
-
-/* =========================================================
-   6) Program → Term dependent selects (bind per row)
-   ---------------------------------------------------------
-   Each editable row has:
-     - .js-program (Program)
-     - .js-term    (Term)
-   We filter <option> in .js-term by the option's data-program.
-   ========================================================= */
+// Program → Term dependent selects
 (function(){
   function bindRow(row){
     var prog = row.querySelector('.js-program');
@@ -162,7 +136,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
       var hasPlaceholder = opts.length && (opts[0].value === '' || opts[0].disabled);
 
       opts.forEach(function(opt, idx){
-        if (hasPlaceholder && idx === 0) return; // keep placeholder
+        if (hasPlaceholder && idx === 0) return; 
         var optProg = opt.getAttribute('data-program');
         var match = !p || (optProg === p);
         opt.hidden   = !match;
@@ -175,7 +149,6 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
         term.selectedIndex = 0;
       }
 
-      // When no options available, show a disabled note option
       var note = term.querySelector('option[data-note="none"]');
       if (!anyVisible) {
         if (!note) {
@@ -201,10 +174,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
   document.querySelectorAll('.js-row').forEach(bindRow);
 })();
 
-
-/* =========================================================
-   7) Enforce disabled state for Plan Next menu items
-   ========================================================= */
+// Enforce disabled state for Plan Next menu items
 (function(){
   var menu = document.getElementById('menu-plan-next');
   if (!menu) return;
@@ -243,12 +213,8 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
   }
 })();
 
+// Generic "copy to clipboard" for buttons with data-copy-target
 
-/* =========================================================
-   8) Generic "copy to clipboard" for buttons with data-copy-target
-   ---------------------------------------------------------
-   Keep logic minimal and self-contained to avoid surprises.
-   ========================================================= */
 (function(){
   document.addEventListener('click', function(e){
     var btn = e.target.closest('[data-copy-target]');
@@ -266,7 +232,7 @@ document.querySelectorAll('.toggle-password').forEach(icon => {
       btn.textContent = 'Copied';
       setTimeout(function(){ btn.textContent = 'Copy'; }, 1400);
     }catch(err){
-      // do nothing; keep UI calm
+
     }
   });
 })();

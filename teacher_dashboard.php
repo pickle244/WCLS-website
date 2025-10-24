@@ -17,7 +17,7 @@ $user_id = (int)($_SESSION['user_id'] ?? ($_SESSION['user'] ?? 0));
 $view    = $_GET['view'] ?? 'home';     
 $tab     = $_GET['tab']  ?? 'roster';   // for view=class: roster | grades
 
-// Helper functions
+
 function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 // Build internal link to this page with query parameters
 function view_url(string $v, array $extra = []): string {
@@ -26,13 +26,13 @@ function view_url(string $v, array $extra = []): string {
   return h($base . '?' . http_build_query($q));
 }
 
-// --- CSRF token (used by Grades save)
+
 if (empty($_SESSION['csrf_token'])) {
   $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
 }
 $csrf = $_SESSION['csrf_token'];
 
-// ---- Resolve teacher_id by user_id  ----
+
 $teacher_id = null;
 if ($user_id > 0) {
   $stm = $conn->prepare("SELECT id FROM teachers WHERE user_id = ? LIMIT 1");
@@ -45,9 +45,7 @@ if ($user_id > 0) {
   $stm->close();
 }
 
-// Added final_grade, final_comment, final_updated in enrollments table in database
-// POST: Save grades/comments 
-// Flow: CSRF -> course ownership -> enrollment gate -> batch update -> PRG
+
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
   $course_id   = (int)($_GET['course_id'] ?? 0); // action URL carries ?course_id=...
@@ -61,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
   } elseif ($teacher_id === null) {
     $error = 'Your account is not linked to a teacher profile.';
   } else {
-    // 2) Course ownership: the course must belong to current teacher
+    // 2) the course must belong to current teacher
     $own = $conn->prepare("SELECT id FROM courses WHERE id=? AND teacher_id=? LIMIT 1");
     $own->bind_param('ii', $course_id, $teacher_id);
     $own_ok = $own->execute() && $own->get_result()->fetch_row();
@@ -134,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
 $flash=''; 
 $courses=[]; $course=null; $roster=[];
 
-// ---- Preload data by view (READ-ONLY SQL) ----
+// ---- Preload data by view  ----
 if ($view === 'courses' && $teacher_id !== null) {
   // List all classes taught by this teacher.
   $sql = "SELECT c.id, c.course_name AS name, c.term, c.year, c.room_number AS room
